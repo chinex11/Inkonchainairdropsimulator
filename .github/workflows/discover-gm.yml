@@ -1,0 +1,19 @@
+name: Discover GM
+on:
+  push:
+    paths: ['.github/workflows/discover-gm.yml', 'test/discover-gm.js']
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: |
+          set +e
+          node test/discover-gm.js > out.txt 2>&1
+          code=$?
+          msg=$(sed 's/%/%25/g' out.txt | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::notice title=discover-gm::$msg"
+          exit $code
