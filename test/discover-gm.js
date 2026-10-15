@@ -14,3 +14,4 @@ const checker = require('../docs/checker.js');
     const bad = log.filter((l) => l[1] !== 200); console.log('  non-200:', bad.length, JSON.stringify(bad.slice(0, 5)));
   }
 })().catch((e) => { console.error('ERROR', e.message); process.exit(1); });
+// rerun after speed fix
