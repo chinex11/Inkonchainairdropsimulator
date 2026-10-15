@@ -132,8 +132,8 @@
     } else {
       var pct = gm.total ? gm.rank / gm.total : null;
       var rp = pct == null ? 1 : pct <= 0.01 ? 10 : pct <= 0.05 ? 8 : pct <= 0.10 ? 6 : pct <= 0.25 ? 4 : pct <= 0.5 ? 2 : 1;
-      m.push(item('gmrank', 'GM leaderboard rank', gm.rank, '#' + gm.rank.toLocaleString('en-US') + (gm.total ? ' of ' + gm.total.toLocaleString('en-US') : ''), rp, GM_RANK_MAX, (pct == null ? 'Ranked' : 'Top ' + (pct * 100 < 1 ? (pct * 100).toFixed(2) : Math.round(pct * 100)) + '%') + (gm.score ? ', gm.ink score ' + gm.score : '')));
-      m.push(item('gmstreak', 'GM streak', gm.streak, gm.streak + ' days', tier(gm.streak, TIERS_STREAK), maxOf(TIERS_STREAK), 'Consecutive daily check-ins'));
+      m.push(item('gmrank', 'GM leaderboard rank', gm.rank, '#' + gm.rank.toLocaleString('en-US') + (gm.total ? ' of ' + gm.total.toLocaleString('en-US') : ''), rp, GM_RANK_MAX, (pct == null ? 'Ranked' : 'Top ' + (pct * 100 < 0.01 ? '0.01' : pct * 100 < 1 ? (pct * 100).toFixed(2) : Math.round(pct * 100)) + '%') + (gm.score ? ', gm.ink score ' + gm.score : '')));
+      m.push(item('gmstreak', 'GM streak', gm.streak, gm.streak + (gm.streak === 1 ? ' day' : ' days'), tier(gm.streak, TIERS_STREAK), maxOf(TIERS_STREAK), 'Consecutive daily check-ins'));
       m.push(item('gmpeople', 'People you greeted', gm.uniqueSent, String(gm.uniqueSent), tier(gm.uniqueSent, TIERS_GM_PEOPLE), maxOf(TIERS_GM_PEOPLE), gm.sent + ' GMs sent, ' + gm.received + ' received'));
     }
     cats.push({ id: 'gm', name: 'Ink GM', note: 'Your rank on the gm.ink leaderboard, read live.', items: m });
