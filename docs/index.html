@@ -145,7 +145,11 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
           <dt>Share of airdrop pool</dt><dd id="share">0%</dd>
           <dt>Share of total supply</dt><dd id="supShare">0%</dd>
           <dt>Value at assumed FDV</dt><dd id="usd">$0</dd>
+          <dt>GM rank (exact)</dt><dd id="rkGm">—</dd>
+          <dt>Score rank (estimate)</dt><dd id="rkScore">—</dd>
+          <dt>Transaction rank (estimate)</dt><dd id="rkTx">—</dd>
         </dl>
+        <p class="small" id="rkNote" style="margin-top:10px"></p>
         <div id="notes"></div>
         <p class="next" id="next"></p>
         <div class="assume">
@@ -154,6 +158,7 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
           <div class="a"><label for="a-avg">Their average score</label><input type="number" id="a-avg" min="1" value="22"></div>
           <div class="a"><label for="a-min">Minimum score to qualify</label><input type="number" id="a-min" min="0" value="10"></div>
           <div class="a"><label for="a-cap">Cap per wallet (INK)</label><input type="number" id="a-cap" min="1" value="250000"></div>
+          <div class="a"><label for="a-typ">Typical score of any Ink wallet</label><input type="number" id="a-typ" min="0.5" step="0.5" value="6"><p class="small">Used for the score rank estimate.</p></div>
           <div class="a"><label for="a-fdv">Assumed FDV (USD)</label><input type="number" id="a-fdv" min="1" value="500000000"></div>
           <div><div class="s"><i id="poolBar"></i></div><p class="small" id="poolTxt"></p></div>
         </div>
@@ -174,7 +179,7 @@ var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'
 var last=null, isExample=false;
 
 var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:49,rawScore:49,totalMax:90,sybil:{factor:1,flags:[]},
- tiers:[{n:'Droplet',min:10},{n:'Quill',min:24},{n:'Nib',min:42},{n:'Inkwell',min:66}],warnings:[],
+ tiers:[{n:'Droplet',min:10},{n:'Quill',min:24},{n:'Nib',min:42},{n:'Inkwell',min:66}],warnings:[],chainStats:{addresses:4200000,transactions:300000000},txRank:{rank:21400,pct:0.51},
  categories:[
   {id:'chain',name:'Wallet activity',note:'Read live from Ink.',score:27,max:44,items:[
    {label:'Transactions on Ink',display:'182',pts:11,max:14,note:'Outgoing transactions (account nonce)'},
@@ -209,7 +214,7 @@ function renderMain(r){
 }
 function assume(){
   var g=function(id,d){var v=Number($(id).value);return isFinite(v)&&v>=0?v:d;};
-  return {pct:g('#a-pct',7),wallets:g('#a-wallets',250000),avg:g('#a-avg',18),min:g('#a-min',8),cap:g('#a-cap',250000),fdv:g('#a-fdv',500000000)};
+  return {pct:g('#a-pct',7),wallets:g('#a-wallets',250000),avg:g('#a-avg',18),min:g('#a-min',10),typ:g('#a-typ',6),cap:g('#a-cap',250000),fdv:g('#a-fdv',500000000)};
 }
 function renderResult(){
   var A=assume(), pool=SUPPLY*A.pct/100;
@@ -227,6 +232,13 @@ function renderResult(){
   $('#supShare').textContent=(100*tokens/SUPPLY).toFixed(6)+'%';
   $('#usd').textContent='$'+fmt(tokens*price,tokens*price<100?2:0);
   $('#poolTxt').textContent=fmt(pool)+' INK ('+A.pct+'%) to the airdrop. About '+fmt(perPt,2)+' INK per point.';
+  var pf=function(p){ return p<0.01?'<0.01%':p<1?p.toFixed(2)+'%':p.toFixed(1)+'%'; };
+  var gmi=last.categories.filter(function(c){return c.id==='gm';})[0], gmr=gmi&&gmi.items[0];
+  $('#rkGm').textContent=gmr?gmr.display:'—';
+  var N=last.chainStats&&last.chainStats.addresses;
+  if(N&&A.typ>0){ var P=Math.min(1,Math.exp(-score/A.typ)); $('#rkScore').textContent='Top '+pf(P*100)+' · ~#'+fmt(Math.max(1,Math.round(N*P))); } else $('#rkScore').textContent='—';
+  $('#rkTx').textContent=last.txRank?'Top '+pf(last.txRank.pct)+' · ~#'+fmt(last.txRank.rank):'—';
+  $('#rkNote').textContent=N?'Out of about '+fmt(N)+' Ink wallets. Only the GM rank is exact. The other two are estimates from the chain-wide totals and an assumed spread of activity.':'Chain-wide wallet totals were not available, so the estimated ranks are blank.';
   var n='';
   if(last.sybil&&last.sybil.factor<1) n+='<div class="note">Farming pattern flagged, score multiplied by '+last.sybil.factor+'. '+esc(last.sybil.flags.join(' '))+'</div>';
   (last.warnings||[]).forEach(function(w){ n+='<div class="note">'+esc(w)+'</div>'; });
@@ -253,7 +265,7 @@ $('#f').addEventListener('submit', function(e){
   .then(function(){ go.disabled=false; go.textContent='Check eligibility'; });
 });
 $('#demo').addEventListener('click', function(){ show(SAMPLE,true); });
-['a-pct','a-wallets','a-avg','a-min','a-cap','a-fdv'].forEach(function(id){ $('#'+id).addEventListener('input',renderResult); });
+['a-pct','a-wallets','a-avg','a-min','a-cap','a-fdv','a-typ'].forEach(function(id){ $('#'+id).addEventListener('input',renderResult); });
 $('#copy').addEventListener('click', function(){
   var b=this,t=window.__sum||'';
   var done=function(m){ b.textContent=m; setTimeout(function(){ b.textContent='Copy my result'; },1600); };

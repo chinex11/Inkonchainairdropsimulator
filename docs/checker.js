@@ -183,11 +183,22 @@
     var gmP = (q.gmLookup ? q.gmLookup(address) : (typeof location !== 'undefined' ? getJson('/api/gm?address=' + address) : Promise.reject(new Error('no GM endpoint'))))
       .catch(function (e) { warnings.push('Ink GM lookup failed (' + e.message + ').'); return null; });
     var done = 0, step = function (label) { return function (v) { done++; if (q.onProgress) q.onProgress(done, 3, label); return v; }; };
-    var r = await Promise.all([checkChain(address, warnings).then(step('Ink activity')), checkGithub(github, warnings).then(step('GitHub')), gmP.then(step('GM rank'))]);
+    var statsP = getJson(EXPLORER + '/api/v2/stats').then(function (st) {
+      var a = Number(st.total_addresses), t = Number(st.total_transactions);
+      return a > 0 && t > 0 ? { addresses: a, transactions: t } : null;
+    }).catch(function () { return null; });
+    var r = await Promise.all([checkChain(address, warnings).then(step('Ink activity')), checkGithub(github, warnings).then(step('GitHub')), gmP.then(step('GM rank')), statsP]);
     var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2]);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
+    var stats = r[3], txRank = null;
+    if (stats && r[0].txCount > 0) {
+      var m = stats.transactions / stats.addresses;
+      var alpha = m > 1.05 ? Math.min(2.5, Math.max(0.8, m / (m - 1))) : 2.5;
+      var P = Math.min(1, Math.pow(r[0].txCount, -alpha));
+      txRank = { rank: Math.max(1, Math.round(stats.addresses * P)), pct: P * 100 };
+    }
     return { address: address, categories: cats, rawScore: raw, sybil: sy, score: Math.round(raw * sy.factor * 10) / 10,
-      totalMax: cats.reduce(function (a, c) { return a + c.max; }, 0), tiers: TIERS_LABELS, warnings: warnings, generatedAt: new Date().toISOString() };
+      totalMax: cats.reduce(function (a, c) { return a + c.max; }, 0), tiers: TIERS_LABELS, warnings: warnings, chainStats: stats, txRank: txRank, generatedAt: new Date().toISOString() };
   }
 
   var api = { check: check };

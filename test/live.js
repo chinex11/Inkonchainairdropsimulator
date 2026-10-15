@@ -24,6 +24,7 @@ const EXPLORER = 'https://explorer.inkonchain.com', RPC = 'https://rpc-gel.inkon
   console.log('\nGM check on the #1 wallet ' + top.users[0].address + ':', tg.score + '/' + tg.max, JSON.stringify(tg.items.map((i) => [i.display, i.pts, i.note])));
   const gmBad = res.categories.find((c) => c.id === 'gm').items.filter((i) => i.display === 'unavailable');
   const topOk = tg.items[0].display.startsWith('#1 ') && tg.score >= 10;
+  console.log('Chain stats', JSON.stringify(res.chainStats), 'txRank', JSON.stringify(res.txRank));
   const bad = res.categories[0].items.filter((i) => i.display === 'unavailable').concat(gmBad);
   if (!topOk) { console.log('FAIL: GM rank for #1 wallet not parsed'); process.exit(1); }
   if (bad.length || !corsOk) { console.log('FAIL', bad.map((i) => i.id).join(','), 'corsOk=' + corsOk); process.exit(1); }
