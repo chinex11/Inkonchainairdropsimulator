@@ -244,7 +244,10 @@ $('#f').addEventListener('submit', function(e){
   var err=$('#err'); err.style.display='none';
   var xfv=$('#xf').value.trim(), xyv=$('#xyears').value.trim();
   var go=$('#go'); go.disabled=true; go.textContent='Checking…';
-  window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(), xf:xfv===''?null:Number(xfv), xyears:xyv===''?0:Number(xyv)})
+  var guard=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('This is taking too long. Wait a minute and try again.')); },60000); });
+  var run=window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(), xf:xfv===''?null:Number(xfv), xyears:xyv===''?0:Number(xyv),
+    onProgress:function(d,t,l){ go.textContent='Checking… '+d+' of '+t+' done ('+l+')'; }});
+  Promise.race([run,guard])
   .then(function(r){ show(r,false); })
   .catch(function(e2){ err.textContent=e2.message; err.style.display='block'; })
   .then(function(){ go.disabled=false; go.textContent='Check eligibility'; });

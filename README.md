@@ -34,5 +34,5 @@ Two farming rules halve the score each: 200+ transactions to 2 or fewer apps, an
 - Ink has announced no airdrop, so every weight and pool number is an assumption.
 - The GM leaderboard is refreshed by gm.ink every few days, and the endpoint is not a documented public API, so it can change.
 - Value held on Ink stands in for bridged volume.
-- Wallets with more than 1,000 transactions are only partly read, so months and apps can be understated.
+- Wallets with more than 300 transactions are only partly read, so months and apps can be understated.
 - GitHub usernames are not verified as yours.

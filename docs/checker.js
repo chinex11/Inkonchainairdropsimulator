@@ -5,7 +5,7 @@
   var RPC = 'https://rpc-gel.inkonchain.com';
   var INK_ORGS = ['inkonchain'];
   var MAINNET_LAUNCH = Date.parse('2024-12-09T00:00:00Z');
-  var MAX_PAGES = 20, DAY = 86400000;
+  var MAX_PAGES = 6, TIME_BUDGET = 10000, DAY = 86400000;
 
   var TIERS_TX = [[1, 2], [10, 5], [25, 8], [100, 11], [500, 13], [2000, 14]];
   var TIERS_MONTHS = [[1, 1], [2, 2], [3, 3], [4, 4], [6, 6], [9, 8], [12, 10]];
@@ -40,49 +40,56 @@
 
   async function checkChain(address, warnings) {
     var out = { txCount: null, months: null, apps: null, deployed: null, firstTs: null, valueUsd: null, sampled: false };
+    var started = Date.now();
     try { out.txCount = parseInt(await rpc('eth_getTransactionCount', [address, 'latest']), 16); }
     catch (e) { warnings.push('Ink RPC lookup failed (' + e.message + '). Transaction count is unavailable.'); }
-    try {
-      var base = EXPLORER + '/api/v2/addresses/' + address, usd = 0;
-      var info = await getJson(base);
-      usd += (Number(info.coin_balance || 0) / 1e18) * Number(info.exchange_rate || 0);
-      try {
-        var toks = await getJson(base + '/token-balances');
-        (Array.isArray(toks) ? toks : []).forEach(function (t) {
-          var tk = t.token || {};
-          if (tk.type && tk.type !== 'ERC-20') return;
-          usd += (Number(t.value || 0) / Math.pow(10, Number(tk.decimals || 18))) * Number(tk.exchange_rate || 0);
-        });
-      } catch (e) { warnings.push('Token balances could not be read, so holdings count ETH only.'); }
-      out.valueUsd = usd;
+    var base = EXPLORER + '/api/v2/addresses/' + address;
+    var big = out.txCount == null || out.txCount > 150;
 
-      var months = {}, apps = {}, deployed = 0, first = Infinity, pages = 0, next = null, count = 0;
-      do {
-        var qs = next ? '&' + new URLSearchParams(next).toString() : '';
-        var j = await getJson(base + '/transactions?filter=from' + qs);
-        (j.items || []).forEach(function (t) {
-          count++;
-          var ts = Date.parse(t.timestamp);
-          if (!isNaN(ts)) { months[t.timestamp.slice(0, 7)] = 1; if (ts < first) first = ts; }
-          var to = t.to && t.to.hash;
-          if (t.created_contract || !t.to) deployed++;
-          else if (to && (t.to.is_contract || t.method)) apps[to.toLowerCase()] = 1;
-        });
-        next = j.next_page_params || null; pages++;
-      } while (next && pages < MAX_PAGES);
-      out.sampled = !!next;
-      out.months = Object.keys(months).length; out.apps = Object.keys(apps).length; out.deployed = deployed;
-      out.firstTs = isFinite(first) ? first : null;
-      if (out.sampled) {
-        warnings.push('Very active wallet: history was read up to ' + count + ' transactions, so months, apps and deployments may be understated.');
+    var holdings = (async function () {
+      try {
+        var info = await getJson(base), usd = (Number(info.coin_balance || 0) / 1e18) * Number(info.exchange_rate || 0);
         try {
-          var a = await getJson(base + '/transactions?filter=from&sort=block_number&order=asc');
-          var f = a.items && a.items[0] && Date.parse(a.items[0].timestamp);
-          if (f && !isNaN(f)) { out.firstTs = f; out.months = Math.max(out.months, Math.round((Date.now() - f) / (30.4 * DAY))); }
-        } catch (e) { /* keep sampled value */ }
-      }
-    } catch (e) {
-      warnings.push('Ink explorer lookup failed (' + e.message + '). Months active, apps used, holdings, deployments and join date are not scored.');
+          var toks = await getJson(base + '/token-balances');
+          (Array.isArray(toks) ? toks : []).forEach(function (t) {
+            var tk = t.token || {};
+            if (tk.type && tk.type !== 'ERC-20') return;
+            usd += (Number(t.value || 0) / Math.pow(10, Number(tk.decimals || 18))) * Number(tk.exchange_rate || 0);
+          });
+        } catch (e) { warnings.push('Token balances could not be read, so holdings count ETH only.'); }
+        out.valueUsd = usd;
+      } catch (e) { warnings.push('Holdings could not be read (' + e.message + ').'); }
+    })();
+
+    var history = (async function () {
+      try {
+        var months = {}, apps = {}, deployed = 0, first = Infinity, pages = 0, next = null;
+        do {
+          var qs = next ? '&' + new URLSearchParams(next).toString() : '';
+          var j = await getJson(base + '/transactions?filter=from' + qs);
+          (j.items || []).forEach(function (t) {
+            var ts = Date.parse(t.timestamp);
+            if (!isNaN(ts)) { months[t.timestamp.slice(0, 7)] = 1; if (ts < first) first = ts; }
+            var to = t.to && t.to.hash;
+            if (t.created_contract || !t.to) deployed++;
+            else if (to && (t.to.is_contract || t.method)) apps[to.toLowerCase()] = 1;
+          });
+          next = j.next_page_params || null; pages++;
+        } while (next && pages < MAX_PAGES && Date.now() - started < TIME_BUDGET);
+        out.sampled = !!next;
+        out.months = Object.keys(months).length; out.apps = Object.keys(apps).length; out.deployed = deployed;
+        out.firstTs = isFinite(first) ? first : null;
+      } catch (e) { warnings.push('Ink explorer history failed (' + e.message + '). Months active, apps used, deployments and join date are not scored.'); }
+    })();
+
+    var oldest = big ? getJson(base + '/transactions?filter=from&sort=block_number&order=asc').then(function (a) {
+      var f = a.items && a.items[0] && Date.parse(a.items[0].timestamp); return f && !isNaN(f) ? f : null;
+    }).catch(function () { return null; }) : Promise.resolve(null);
+
+    var res = await Promise.all([holdings, history, oldest]);
+    if (out.sampled) {
+      warnings.push('Large wallet: only the newest ' + (MAX_PAGES * 50) + ' transactions were read to keep this fast, so months active, apps used and deployments are estimates.');
+      if (res[2]) { out.firstTs = res[2]; if (out.months != null) out.months = Math.max(out.months, Math.round((Date.now() - res[2]) / (30.4 * DAY))); }
     }
     return out;
   }
@@ -175,7 +182,8 @@
     var warnings = [], address = q.address.toLowerCase();
     var gmP = (q.gmLookup ? q.gmLookup(address) : (typeof location !== 'undefined' ? getJson('/api/gm?address=' + address) : Promise.reject(new Error('no GM endpoint'))))
       .catch(function (e) { warnings.push('Ink GM lookup failed (' + e.message + ').'); return null; });
-    var r = await Promise.all([checkChain(address, warnings), checkGithub(github, warnings), gmP]);
+    var done = 0, step = function (label) { return function (v) { done++; if (q.onProgress) q.onProgress(done, 3, label); return v; }; };
+    var r = await Promise.all([checkChain(address, warnings).then(step('Ink activity')), checkGithub(github, warnings).then(step('GitHub')), gmP.then(step('GM rank'))]);
     var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2]);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
     return { address: address, categories: cats, rawScore: raw, sybil: sy, score: Math.round(raw * sy.factor * 10) / 10,
