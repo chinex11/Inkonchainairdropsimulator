@@ -15,7 +15,10 @@
   var TIERS_PRS = [[1, 2], [3, 4], [10, 6]];
   var TIERS_DEPLOYED = [[1, 1], [3, 3]];
   var TIERS_FOLLOWERS = [[50, 1], [200, 2], [1000, 4], [5000, 6], [20000, 8], [100000, 9]];
-  var TIERS_LABELS = [{ n: 'Droplet', min: 8 }, { n: 'Quill', min: 20 }, { n: 'Nib', min: 35 }, { n: 'Inkwell', min: 55 }];
+  var TIERS_STREAK = [[7, 1], [30, 2], [100, 3]];
+  var TIERS_GM_PEOPLE = [[5, 1], [25, 2]];
+  var GM_RANK_MAX = 10;
+  var TIERS_LABELS = [{ n: 'Droplet', min: 10 }, { n: 'Quill', min: 24 }, { n: 'Nib', min: 42 }, { n: 'Inkwell', min: 66 }];
 
   function tier(v, t) { var p = 0; for (var i = 0; i < t.length; i++) if (v >= t[i][0]) p = t[i][1]; return p; }
   function maxOf(t) { return t[t.length - 1][1]; }
@@ -106,8 +109,8 @@
     return out;
   }
 
-  function score(chain, gh, xf, xyears, hasX) {
-    var cats = [], c = [], g = [], s = [];
+  function score(chain, gh, xf, xyears, gm) {
+    var cats = [], c = [], g = [], s = [], m = [];
     c.push(chain.txCount == null ? na('tx', 'Transactions on Ink', maxOf(TIERS_TX), 'RPC unreachable')
       : item('tx', 'Transactions on Ink', chain.txCount, String(chain.txCount), tier(chain.txCount, TIERS_TX), maxOf(TIERS_TX), 'Outgoing transactions (account nonce)'));
     c.push(chain.months == null ? na('months', 'Active months', maxOf(TIERS_MONTHS), 'Explorer unreachable')
@@ -119,6 +122,21 @@
     if (chain.firstTs == null) c.push(na('early', 'Early adopter', 4, chain.months == null ? 'Explorer unreachable' : 'No transactions found'));
     else { var d = (chain.firstTs - MAINNET_LAUNCH) / DAY; c.push(item('early', 'Early adopter', chain.firstTs, new Date(chain.firstTs).toISOString().slice(0, 10), d <= 30 ? 4 : d <= 180 ? 3 : 2, 4, 'Date of your first transaction')); }
     cats.push({ id: 'chain', name: 'Wallet activity', note: 'Read live from Ink.', items: c });
+
+    if (!gm) {
+      var gw = 'GM data unavailable right now';
+      m.push(na('gmrank', 'GM leaderboard rank', GM_RANK_MAX, gw)); m.push(na('gmstreak', 'GM streak', maxOf(TIERS_STREAK), gw)); m.push(na('gmpeople', 'People you greeted', maxOf(TIERS_GM_PEOPLE), gw));
+    } else if (!gm.ranked) {
+      var gn = 'Tap GM daily at gm.ink to get ranked';
+      m.push(item('gmrank', 'GM leaderboard rank', null, 'Not ranked', 0, GM_RANK_MAX, gn)); m.push(item('gmstreak', 'GM streak', 0, '0 days', 0, maxOf(TIERS_STREAK), gn)); m.push(item('gmpeople', 'People you greeted', 0, '0', 0, maxOf(TIERS_GM_PEOPLE), gn));
+    } else {
+      var pct = gm.total ? gm.rank / gm.total : null;
+      var rp = pct == null ? 1 : pct <= 0.01 ? 10 : pct <= 0.05 ? 8 : pct <= 0.10 ? 6 : pct <= 0.25 ? 4 : pct <= 0.5 ? 2 : 1;
+      m.push(item('gmrank', 'GM leaderboard rank', gm.rank, '#' + gm.rank.toLocaleString('en-US') + (gm.total ? ' of ' + gm.total.toLocaleString('en-US') : ''), rp, GM_RANK_MAX, (pct == null ? 'Ranked' : 'Top ' + (pct * 100 < 1 ? (pct * 100).toFixed(2) : Math.round(pct * 100)) + '%') + (gm.score ? ', gm.ink score ' + gm.score : '')));
+      m.push(item('gmstreak', 'GM streak', gm.streak, gm.streak + ' days', tier(gm.streak, TIERS_STREAK), maxOf(TIERS_STREAK), 'Consecutive daily check-ins'));
+      m.push(item('gmpeople', 'People you greeted', gm.uniqueSent, String(gm.uniqueSent), tier(gm.uniqueSent, TIERS_GM_PEOPLE), maxOf(TIERS_GM_PEOPLE), gm.sent + ' GMs sent, ' + gm.received + ' received'));
+    }
+    cats.push({ id: 'gm', name: 'Ink GM', note: 'Your rank on the gm.ink leaderboard, read live.', items: m });
 
     if (!gh) { g.push(na('commits', 'Commits to Ink repos', maxOf(TIERS_COMMITS), 'No GitHub username entered')); g.push(na('prs', 'Merged pull requests', maxOf(TIERS_PRS), 'No GitHub username entered')); }
     else if (!gh.found) { var why = gh.error ? 'GitHub unreachable' : 'GitHub user not found'; g.push(na('commits', 'Commits to Ink repos', maxOf(TIERS_COMMITS), why)); g.push(na('prs', 'Merged pull requests', maxOf(TIERS_PRS), why)); }
@@ -155,8 +173,10 @@
     var github = (q.github || '').replace(/^@/, '');
     if (github && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(github)) throw new Error('That GitHub username is not valid.');
     var warnings = [], address = q.address.toLowerCase();
-    var r = await Promise.all([checkChain(address, warnings), checkGithub(github, warnings)]);
-    var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, false);
+    var gmP = (q.gmLookup ? q.gmLookup(address) : (typeof location !== 'undefined' ? getJson('/api/gm?address=' + address) : Promise.reject(new Error('no GM endpoint'))))
+      .catch(function (e) { warnings.push('Ink GM lookup failed (' + e.message + ').'); return null; });
+    var r = await Promise.all([checkChain(address, warnings), checkGithub(github, warnings), gmP]);
+    var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2]);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
     return { address: address, categories: cats, rawScore: raw, sybil: sy, score: Math.round(raw * sy.factor * 10) / 10,
       totalMax: cats.reduce(function (a, c) { return a + c.max; }, 0), tiers: TIERS_LABELS, warnings: warnings, generatedAt: new Date().toISOString() };

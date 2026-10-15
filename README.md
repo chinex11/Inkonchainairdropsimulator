@@ -1,48 +1,38 @@
 # Ink Airdrop Checker (unofficial)
 
-Paste a wallet address, optionally a GitHub and X username, and the server scores it with an
-Arbitrum-style points model and estimates a token amount from a 1,000,000,000 supply.
+Paste a wallet address (and optionally a GitHub username and your X follower count). The page reads the
+wallet's public activity and gives an estimated score, tier and token amount on a 1,000,000,000 supply.
 No wallet connection and no signing.
 
-## Run
+## Host on Vercel (no build step)
 
-    node server.js            # Node 18+, no npm install needed
-    # open http://localhost:3000
+Import the repo at vercel.com. `vercel.json` serves `docs/` as the site and Vercel runs `api/gm.js` as a
+function (gm.ink sends no CORS headers, so the page reads the GM leaderboard through this function).
 
-## Environment variables (all optional)
+## Run locally
 
-| Variable | Purpose | Default |
-|---|---|---|
-| `PORT` | Server port | `3000` |
-| `GITHUB_TOKEN` | Raises GitHub rate limit (search is 10 requests/min without it) | none |
-| `X_BEARER_TOKEN` | Enables automatic X follower and account-age lookup (X API v2, paid tiers) | none, users type their numbers |
-| `INK_GITHUB_ORGS` | Comma-separated GitHub orgs that count as "Ink repos" | `inkonchain` |
-| `INK_EXPLORER` | Blockscout base URL | `https://explorer.inkonchain.com` |
-| `INK_RPC` | JSON-RPC endpoint | `https://rpc-gel.inkonchain.com` |
-| `INK_MAINNET_LAUNCH` | Date used for the early-adopter tiers | `2024-12-09T00:00:00Z` |
-| `MAX_TX_PAGES` | Explorer pages read per wallet (50 txs each) | `20` |
+    node server.js     # Node 18+, no install, http://localhost:3000
 
-## What is fetched
+## What is read
 
-- **Ink RPC**: transaction count (account nonce).
-- **Ink explorer (Blockscout API v2)**: transaction history for months active, unique apps, contract deployments and first transaction date; ETH and ERC-20 balances priced by the explorer.
-- **GitHub REST**: commit and merged-PR counts per org via the search API.
-- **X API v2**: followers and account created date, only if `X_BEARER_TOKEN` is set.
+- **Ink RPC and explorer (Blockscout)**: transactions, active months, apps used, holdings, contracts deployed, first transaction date.
+- **gm.ink leaderboard** (`/api/user-leaderboard`): rank, streak, GMs sent and received, people greeted.
+- **GitHub search API**: commits and merged PRs to the `inkonchain` org.
+- **X**: not readable without a paid API key, so followers are typed in.
 
-## Scoring (max 75)
+## Scoring (max 90, edit the tier tables at the top of `docs/checker.js`)
 
-Edit the `TIERS_*` tables at the top of `server.js`.
-
-- Wallet activity 44: transactions 14, active months 10, apps used 8, value held 8, early adopter 4
+- Wallet activity 44: transactions 14, active months 10, apps 8, value held 8, early adopter 4
+- Ink GM 15: leaderboard rank by percentile 10 (top 1% = 10, 5% = 8, 10% = 6, 25% = 4, 50% = 2, any rank = 1), streak 3, people greeted 2
 - GitHub 20: commits 11, merged PRs 6, contracts deployed 3
 - X reach 11: followers 9, account age 2
 
-Two farming heuristics halve the score each: 200+ transactions to 2 or fewer apps, and 100+ transactions in the wallet's first week.
+Two farming rules halve the score each: 200+ transactions to 2 or fewer apps, and 100+ transactions in the wallet's first week.
 
-## Limits worth knowing
+## Limits
 
-- Value held on Ink is a stand-in for bridged volume. Bridge deposits are not read.
-- The explorer and RPC could not be reached from the build sandbox, so the on-chain calls follow the documented Blockscout v2 shapes and are untested live. If a field differs, the server degrades: that item shows "unavailable" and a note appears. Check with a real address first.
-- GitHub and X usernames are self-declared and not verified. Real verification needs OAuth sign-in.
-- Discord, governance votes and NFTs from the earlier simulator are dropped because they cannot be read without a login or a known contract list.
-- Ink has published no airdrop. Every weight and pool number is an assumption.
+- Ink has announced no airdrop, so every weight and pool number is an assumption.
+- The GM leaderboard is refreshed by gm.ink every few days, and the endpoint is not a documented public API, so it can change.
+- Value held on Ink stands in for bridged volume.
+- Wallets with more than 1,000 transactions are only partly read, so months and apps can be understated.
+- GitHub usernames are not verified as yours.
