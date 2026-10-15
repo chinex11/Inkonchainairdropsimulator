@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ink Airdrop Checker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: lookup form on top, scored breakdown on the left, sticky allocation panel on the right; stacks on phones. */
+:root{
+  --bg:#f3f2f8; --card:#ffffff; --fg:#17142b; --muted:#5e5b78; --line:#dedbec;
+  --accent:#5a2fd6; --accent-soft:#ebe5fc; --good:#157a55; --warn:#b4540a; --bad:#b3261e;
+  --f-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --f-body:'Instrument Sans','Segoe UI',system-ui,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e0c1b; --card:#171430; --fg:#ebe8fb; --muted:#a09bc2; --line:#2b2751;
+  --accent:#a187ff; --accent-soft:#251f52; --good:#45d19b; --warn:#f0a15a; --bad:#ff8a80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e0c1b; --card:#171430; --fg:#ebe8fb; --muted:#a09bc2; --line:#2b2751;
+  --accent:#a187ff; --accent-soft:#251f52; --good:#45d19b; --warn:#f0a15a; --bad:#ff8a80; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body);padding-block:20px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1080px;margin:0 auto}
+header{margin-bottom:18px}
+.tag{font:500 11px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{font:800 clamp(30px,6vw,52px)/1.02 var(--f-display);margin:6px 0 0;letter-spacing:-.02em;text-wrap:balance}
+.sub{color:var(--muted);max-width:62ch;margin:8px 0 0}
+.notice{border:1px solid var(--line);background:var(--card);padding:10px 14px;border-radius:8px;font-size:13px;color:var(--muted);margin-bottom:18px}
+.notice b{color:var(--fg)}
+.lookup{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:22px}
+.fields{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
+.fields label,.lbl{display:block;font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+input[type=text],input[type=number],select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font:500 14px var(--f-mono)}
+input:focus-visible,button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
+button{font:inherit;cursor:pointer}
+.go{background:var(--accent);color:var(--bg);border:0;border-radius:8px;padding:10px 20px;font-weight:600}
+.go[disabled]{opacity:.6;cursor:progress}
+.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px 16px;font-weight:500}
+details{margin-top:12px;color:var(--muted);font-size:13px}
+details summary{cursor:pointer}
+details .fields{grid-template-columns:1fr 1fr;margin-top:10px;max-width:420px}
+.err{display:none;margin-top:12px;padding:10px 12px;border:1px solid var(--bad);border-radius:8px;color:var(--bad);font-size:13px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:24px;align-items:start}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:28px;color:var(--muted)}
+.empty h2{font:700 20px var(--f-display);color:var(--fg);margin:0 0 6px}
+.empty ul{margin:10px 0 0;padding-left:18px}
+section.cat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}
+.cat-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.cat-h h2{font:700 20px var(--f-display);margin:0}
+.cat-h .pts{font:500 13px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.cat-note{color:var(--muted);font-size:13px;margin:2px 0 10px}
+.meter{height:6px;background:var(--accent-soft);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.meter i{display:block;height:100%;background:var(--accent)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto 64px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.row .n{font-weight:500;min-width:0}
+.row small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.row .v{font:500 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.row .v.na{color:var(--muted);font-family:var(--f-body)}
+.got{font:500 13px var(--f-mono);text-align:right;color:var(--accent);font-variant-numeric:tabular-nums}
+aside{position:sticky;top:max(16px,env(safe-area-inset-top,0px));min-width:0}
+.result{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px}
+.big{font:800 clamp(40px,9vw,56px)/1 var(--f-display);letter-spacing:-.02em;margin:6px 0 2px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.big small{font:600 18px var(--f-display);color:var(--muted);letter-spacing:0}
+.status{display:inline-block;font:600 12px var(--f-mono);padding:4px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);margin:8px 0 14px}
+.status.no{background:transparent;border:1px solid var(--bad);color:var(--bad)}
+dl{margin:0;display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px}
+dt{color:var(--muted)} dd{margin:0;font:500 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.note{margin:12px 0 0;padding:10px 12px;border-radius:8px;border:1px solid var(--warn);color:var(--warn);font-size:13px}
+.note + .note{margin-top:8px}
+.next{margin:12px 0 0;font-size:13px;color:var(--muted)}
+.assume{margin-top:18px;border-top:1px solid var(--line);padding-top:14px;display:grid;gap:12px}
+.assume .a{display:grid;gap:4px}
+.assume .a label{margin:0;display:flex;justify-content:space-between;gap:8px}
+.assume .a label span{color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.s{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--accent-soft);margin:6px 0}
+.s i{display:block;background:var(--accent);min-width:2px}
+.small{font-size:12px;color:var(--muted);margin:0}
+.copy{margin-top:16px;width:100%;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:10px;font-weight:600}
+.tagx{display:inline-block;font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--warn);color:var(--warn);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:middle}
+footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
+@media (max-width:860px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  aside{position:static;order:-1}
+  .fields{grid-template-columns:1fr}
+}
+@media (max-width:520px){.row{grid-template-columns:minmax(0,1fr) auto 52px;gap:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tag">Unofficial checker &middot; 1,000,000,000 supply</div>
+    <h1>Ink Airdrop Checker</h1>
+    <p class="sub">Paste a wallet address. The server reads its activity from Ink, adds GitHub and X if you give usernames, and scores it. You do not connect or sign anything.</p>
+  </header>
+
+  <div class="notice"><b>Estimate only.</b> Not from the Ink Foundation or Kraken, and no official criteria exist. The scoring follows the kind of points model Arbitrum used. Token amounts depend on the pool assumptions you set below.</div>
+
+  <form class="lookup" id="f" autocomplete="off">
+    <div class="fields">
+      <div><label for="address">Wallet address</label><input type="text" id="address" placeholder="0x..." spellcheck="false" required></div>
+      <div><label for="github">GitHub username</label><input type="text" id="github" placeholder="optional" spellcheck="false"></div>
+      <div><label for="x">X username</label><input type="text" id="x" placeholder="optional" spellcheck="false"></div>
+    </div>
+    <details>
+      <summary>No X lookup on this server? Type your numbers</summary>
+      <div class="fields">
+        <div><label for="xf">X followers</label><input type="number" id="xf" min="0" placeholder="e.g. 850"></div>
+        <div><label for="xyears">Account age (years)</label><input type="number" id="xyears" min="0" step="0.5" placeholder="e.g. 2"></div>
+      </div>
+    </details>
+    <div class="actions">
+      <button class="go" id="go" type="submit">Check eligibility</button>
+      <button class="ghost" id="demo" type="button">Show an example result</button>
+    </div>
+    <div class="err" id="err" role="alert"></div>
+  </form>
+
+  <div class="grid">
+    <main id="main">
+      <div class="empty">
+        <h2>Your breakdown appears here</h2>
+        <p style="margin:0">Enter a wallet address above. These are checked automatically:</p>
+        <ul>
+          <li>Ink: transactions, active months, apps used, holdings, contracts deployed, first transaction date</li>
+          <li>GitHub: commits and merged pull requests to Ink organisations</li>
+          <li>X: followers and account age, when the server has an X API key</li>
+        </ul>
+      </div>
+    </main>
+    <aside>
+      <div class="result" aria-live="polite">
+        <div class="lbl">Estimated allocation <span class="tagx" id="exTag" hidden>Example</span></div>
+        <div class="big"><span id="tok">0</span> <small>INK</small></div>
+        <div class="status no" id="status">No result yet</div>
+        <dl>
+          <dt>Score</dt><dd id="score">0</dd>
+          <dt>Share of airdrop pool</dt><dd id="share">0%</dd>
+          <dt>Share of total supply</dt><dd id="supShare">0%</dd>
+          <dt>Value at assumed FDV</dt><dd id="usd">$0</dd>
+        </dl>
+        <div id="notes"></div>
+        <p class="next" id="next"></p>
+        <div class="assume">
+          <div class="a"><label for="a-pct">Share of supply airdropped <span id="a-pct-v"></span></label><input type="range" id="a-pct" min="1" max="20" step="0.5" value="7"><p class="small">Arbitrum gave about 11.6%.</p></div>
+          <div class="a"><label for="a-wallets">Other eligible wallets</label><input type="number" id="a-wallets" min="1" value="250000"></div>
+          <div class="a"><label for="a-avg">Their average score</label><input type="number" id="a-avg" min="1" value="18"></div>
+          <div class="a"><label for="a-min">Minimum score to qualify</label><input type="number" id="a-min" min="0" value="8"></div>
+          <div class="a"><label for="a-cap">Cap per wallet (INK)</label><input type="number" id="a-cap" min="1" value="250000"></div>
+          <div class="a"><label for="a-fdv">Assumed FDV (USD)</label><input type="number" id="a-fdv" min="1" value="500000000"></div>
+          <div><div class="s"><i id="poolBar"></i></div><p class="small" id="poolTxt"></p></div>
+        </div>
+        <button class="copy" id="copy" type="button" disabled>Copy my result</button>
+      </div>
+    </aside>
+  </div>
+
+  <footer>GitHub and X usernames are not verified as yours, since there is no sign-in. Anyone can look up any public wallet or username. Wallet history is read from the public Ink explorer and RPC.</footer>
+</div>
+
+<script>
+(function(){
+var SUPPLY=1000000000, $=function(s){return document.querySelector(s);};
+var fmt=function(n,d){return Number(n).toLocaleString('en-US',{maximumFractionDigits:d==null?0:d});};
+var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+var last=null, isExample=false;
+
+var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:36.5,rawScore:36.5,totalMax:75,sybil:{factor:1,flags:[]},
+ tiers:[{n:'Droplet',min:8},{n:'Quill',min:20},{n:'Nib',min:35},{n:'Inkwell',min:55}],warnings:[],
+ categories:[
+  {id:'chain',name:'Wallet activity',note:'Read live from Ink.',score:27,max:44,items:[
+   {label:'Transactions on Ink',display:'182',pts:11,max:14,note:'Outgoing transactions (account nonce)'},
+   {label:'Active months',display:'5',pts:5,max:10,note:'Distinct calendar months with a transaction'},
+   {label:'Different apps used',display:'9',pts:5,max:8,note:'Unique contracts you called'},
+   {label:'Value held on Ink',display:'$1,420',pts:5,max:8,note:'ETH plus priced ERC-20s now'},
+   {label:'Early adopter',display:'2025-01-14',pts:3,max:4,note:'Date of your first transaction'}]},
+  {id:'dev',name:'GitHub',note:'Contributions to Ink organisations, plus contracts you deployed.',score:7,max:20,items:[
+   {label:'Commits to Ink repos',display:'6',pts:6,max:11,note:'Across inkonchain'},
+   {label:'Merged pull requests',display:'0',pts:0,max:6,note:''},
+   {label:'Contracts deployed on Ink',display:'1',pts:1,max:3,note:''}]},
+  {id:'social',name:'X reach',note:'Follower count and account age.',score:2.5,max:11,items:[
+   {label:'X followers',display:'640',pts:2,max:9,note:'Source: typed by user'},
+   {label:'X account age',display:'2 yrs',pts:1,max:2,note:''}]}
+ ]};
+
+function row(i){
+  var na = i.display==='unavailable';
+  return '<div class="row"><div class="n">'+esc(i.label)+(i.note?'<small>'+esc(i.note)+'</small>':'')+'</div>'+
+    '<div class="v'+(na?' na':'')+'">'+esc(i.display)+'</div><div class="got">+'+i.pts+'/'+i.max+'</div></div>';
+}
+function renderMain(r){
+  $('#main').innerHTML = r.categories.map(function(c){
+    return '<section class="cat"><div class="cat-h"><h2>'+esc(c.name)+'</h2><span class="pts">'+c.score+' / '+c.max+' pts</span></div>'+
+      '<p class="cat-note">'+esc(c.note||'')+'</p><div class="meter"><i style="width:'+(c.max?100*c.score/c.max:0)+'%"></i></div>'+
+      c.items.map(row).join('')+'</section>';
+  }).join('');
+}
+function assume(){
+  var g=function(id,d){var v=Number($(id).value);return isFinite(v)&&v>=0?v:d;};
+  return {pct:g('#a-pct',7),wallets:g('#a-wallets',250000),avg:g('#a-avg',18),min:g('#a-min',8),cap:g('#a-cap',250000),fdv:g('#a-fdv',500000000)};
+}
+function renderResult(){
+  var A=assume(), pool=SUPPLY*A.pct/100;
+  $('#a-pct-v').textContent=A.pct+'%';
+  $('#poolBar').style.width=A.pct+'%';
+  if(!last){ $('#poolTxt').textContent=fmt(pool)+' INK ('+A.pct+'%) of 1B supply.'; return; }
+  var score=last.score, perPt=pool/(A.wallets*A.avg+score);
+  var ok=score>=A.min && score>0, tokens=ok?Math.min(score*perPt,A.cap):0, price=A.fdv/SUPPLY;
+  var tier=null; last.tiers.forEach(function(t){ if(score>=t.min) tier=t; });
+  var name=ok?(tier?tier.n:'Eligible'):'Not eligible';
+  $('#tok').textContent=fmt(tokens);
+  var st=$('#status'); st.textContent=name; st.className='status'+(ok?'':' no');
+  $('#score').textContent=fmt(score,1)+' / '+last.totalMax+' pts';
+  $('#share').textContent=(pool?100*tokens/pool:0).toFixed(5)+'%';
+  $('#supShare').textContent=(100*tokens/SUPPLY).toFixed(6)+'%';
+  $('#usd').textContent='$'+fmt(tokens*price,tokens*price<100?2:0);
+  $('#poolTxt').textContent=fmt(pool)+' INK ('+A.pct+'%) to the airdrop. About '+fmt(perPt,2)+' INK per point.';
+  var n='';
+  if(last.sybil&&last.sybil.factor<1) n+='<div class="note">Farming pattern flagged, score multiplied by '+last.sybil.factor+'. '+esc(last.sybil.flags.join(' '))+'</div>';
+  (last.warnings||[]).forEach(function(w){ n+='<div class="note">'+esc(w)+'</div>'; });
+  $('#notes').innerHTML=n;
+  var nx=$('#next');
+  if(!ok) nx.textContent='You need '+fmt(Math.max(A.min-score,0.1),1)+' more points to qualify.';
+  else { var nt=last.tiers.filter(function(t){return t.min>score;})[0]; nx.textContent=nt?fmt(nt.min-score,1)+' more points to reach '+nt.n+'.':'Top tier reached.'; if(tokens>=A.cap) nx.textContent+=' Held at the per-wallet cap.'; }
+  window.__sum='Ink airdrop estimate: '+fmt(score,1)+'/'+last.totalMax+' pts, '+name+', about '+fmt(tokens)+' INK of 1B supply ($'+fmt(tokens*price)+' at a $'+fmt(A.fdv)+' FDV). Unofficial.';
+  $('#copy').disabled=false;
+}
+function show(r, ex){ last=r; isExample=!!ex; $('#exTag').hidden=!ex; renderMain(r); renderResult(); }
+
+$('#f').addEventListener('submit', function(e){
+  e.preventDefault();
+  var err=$('#err'); err.style.display='none';
+  var q=new URLSearchParams();
+  q.set('address',$('#address').value.trim());
+  ['github','x','xf','xyears'].forEach(function(k){ var v=$('#'+k).value.trim(); if(v) q.set(k,v); });
+  var go=$('#go'); go.disabled=true; go.textContent='Checking…';
+  fetch('/api/check?'+q.toString()).then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+  .then(function(o){ if(!o.ok) throw new Error(o.j.error||'Check failed'); show(o.j,false); })
+  .catch(function(e2){ err.textContent=e2.message; err.style.display='block'; })
+  .then(function(){ go.disabled=false; go.textContent='Check eligibility'; });
+});
+$('#demo').addEventListener('click', function(){ show(SAMPLE,true); });
+['a-pct','a-wallets','a-avg','a-min','a-cap','a-fdv'].forEach(function(id){ $('#'+id).addEventListener('input',renderResult); });
+$('#copy').addEventListener('click', function(){
+  var b=this,t=window.__sum||'';
+  var done=function(m){ b.textContent=m; setTimeout(function(){ b.textContent='Copy my result'; },1600); };
+  try{ navigator.clipboard.writeText(t).then(function(){done('Copied');},function(){done(t);}); }catch(e){ done(t); }
+});
+renderResult();
+})();
+</script>
+</body>
+</html>
