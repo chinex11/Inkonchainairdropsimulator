@@ -11,6 +11,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node test/live.js
+      - run: |
+          set +e
+          node test/live.js > out.txt 2>&1
+          code=$?
+          msg=$(sed 's/%/%25/g' out.txt | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::notice title=live-test::$msg"
+          exit $code
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
