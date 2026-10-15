@@ -1,17 +1,16 @@
 'use strict';
-const base = 'https://www.gm.ink';
-const get = (u) => fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+// Timing probe: logs every outbound request the checker makes and how long it took.
+const gm = require('../api/gm.js');
+const real = global.fetch; const log = [];
+global.fetch = async (u, o) => { const t = Date.now(); try { const r = await real(u, o); log.push([Date.now() - t, r.status, String(u).replace('https://', '').slice(0, 110)]); return r; } catch (e) { log.push([Date.now() - t, 'ERR ' + e.message, String(u).slice(0, 110)]); throw e; } };
+const checker = require('../docs/checker.js');
 (async () => {
-  const pg = await (await get(base + '/api/leaderboard-pagination?page=1')).json();
-  console.log('pagination keys:', Object.keys(pg).join(','));
-  const u0 = pg.users[0];
-  console.log('pagination user[0]:', JSON.stringify(u0).slice(0, 1400));
-  console.log('users on page:', pg.users.length, JSON.stringify(Object.fromEntries(Object.entries(pg).filter(([k]) => k !== 'users'))).slice(0, 400));
-  const addr = u0.address;
-  const r = await get(base + '/api/user-leaderboard?address=' + addr);
-  console.log('\nuser-leaderboard', r.status, (await r.text()).slice(0, 1800));
-  const g = await get(base + '/api/gm-data?address=' + addr);
-  console.log('\ngm-data for top user', g.status, (await g.text()).slice(0, 700));
-  const p2 = await (await get(base + '/api/leaderboard-pagination?page=2')).json();
-  console.log('\npage2 first address', p2.users && p2.users[0] && p2.users[0].address);
+  for (const [name, addr] of [['busy', '0xC44592088b94889a7fD303F46a60C51b4915F794'], ['mid', '0x00deca2338BDd7f23D48095F452D737071316E84']]) {
+    log.length = 0; const t = Date.now();
+    const r = await checker.check({ address: addr, github: 'chinex11', gmLookup: gm.lookupGm });
+    console.log('\n== ' + name + ': total ' + (Date.now() - t) + ' ms, requests ' + log.length + ', warnings ' + JSON.stringify(r.warnings));
+    const slow = log.slice().sort((a, b) => b[0] - a[0]).slice(0, 6);
+    slow.forEach((l) => console.log('  ' + l[0] + 'ms  ' + l[1] + '  ' + l[2]));
+    const bad = log.filter((l) => l[1] !== 200); console.log('  non-200:', bad.length, JSON.stringify(bad.slice(0, 5)));
+  }
 })().catch((e) => { console.error('ERROR', e.message); process.exit(1); });
