@@ -252,7 +252,7 @@ function limited(ip) {
   return arr.length > 20;
 }
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
-const PUB = path.join(__dirname, 'public');
+const PUB = path.join(__dirname, 'docs');
 
 http.createServer(async function (req, res) {
   const u = new URL(req.url, 'http://localhost');

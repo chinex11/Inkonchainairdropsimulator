@@ -97,7 +97,7 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
   <header>
     <div class="tag">Unofficial checker &middot; 1,000,000,000 supply</div>
     <h1>Ink Airdrop Checker</h1>
-    <p class="sub">Paste a wallet address. The server reads its activity from Ink, adds GitHub and X if you give usernames, and scores it. You do not connect or sign anything.</p>
+    <p class="sub">Paste a wallet address. Your browser reads its activity from Ink, adds GitHub and X if you give usernames, and scores it. You do not connect or sign anything.</p>
   </header>
 
   <div class="notice"><b>Estimate only.</b> Not from the Ink Foundation or Kraken, and no official criteria exist. The scoring follows the kind of points model Arbitrum used. Token amounts depend on the pool assumptions you set below.</div>
@@ -106,10 +106,10 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
     <div class="fields">
       <div><label for="address">Wallet address</label><input type="text" id="address" placeholder="0x..." spellcheck="false" required></div>
       <div><label for="github">GitHub username</label><input type="text" id="github" placeholder="optional" spellcheck="false"></div>
-      <div><label for="x">X username</label><input type="text" id="x" placeholder="optional" spellcheck="false"></div>
+      <div><label for="x">X username</label><input type="text" id="x" placeholder="not used yet" spellcheck="false" disabled></div>
     </div>
-    <details>
-      <summary>No X lookup on this server? Type your numbers</summary>
+    <details open>
+      <summary>X followers (type them, X cannot be read without an API key)</summary>
       <div class="fields">
         <div><label for="xf">X followers</label><input type="number" id="xf" min="0" placeholder="e.g. 850"></div>
         <div><label for="xyears">Account age (years)</label><input type="number" id="xyears" min="0" step="0.5" placeholder="e.g. 2"></div>
@@ -130,7 +130,7 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
         <ul>
           <li>Ink: transactions, active months, apps used, holdings, contracts deployed, first transaction date</li>
           <li>GitHub: commits and merged pull requests to Ink organisations</li>
-          <li>X: followers and account age, when the server has an X API key</li>
+          <li>X: you type your follower count, since X blocks free lookups</li>
         </ul>
       </div>
     </main>
@@ -164,6 +164,7 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
   <footer>GitHub and X usernames are not verified as yours, since there is no sign-in. Anyone can look up any public wallet or username. Wallet history is read from the public Ink explorer and RPC.</footer>
 </div>
 
+<script src="checker.js"></script>
 <script>
 (function(){
 var SUPPLY=1000000000, $=function(s){return document.querySelector(s);};
@@ -236,12 +237,10 @@ function show(r, ex){ last=r; isExample=!!ex; $('#exTag').hidden=!ex; renderMain
 $('#f').addEventListener('submit', function(e){
   e.preventDefault();
   var err=$('#err'); err.style.display='none';
-  var q=new URLSearchParams();
-  q.set('address',$('#address').value.trim());
-  ['github','x','xf','xyears'].forEach(function(k){ var v=$('#'+k).value.trim(); if(v) q.set(k,v); });
+  var xfv=$('#xf').value.trim(), xyv=$('#xyears').value.trim();
   var go=$('#go'); go.disabled=true; go.textContent='Checking…';
-  fetch('/api/check?'+q.toString()).then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
-  .then(function(o){ if(!o.ok) throw new Error(o.j.error||'Check failed'); show(o.j,false); })
+  window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(), xf:xfv===''?null:Number(xfv), xyears:xyv===''?0:Number(xyv)})
+  .then(function(r){ show(r,false); })
   .catch(function(e2){ err.textContent=e2.message; err.style.display='block'; })
   .then(function(){ go.disabled=false; go.textContent='Check eligibility'; });
 });
