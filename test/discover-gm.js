@@ -1,18 +1,13 @@
 'use strict';
-// Timing probe: logs every outbound request the checker makes and how long it took.
-const gm = require('../api/gm.js');
-const real = global.fetch; const log = [];
-global.fetch = async (u, o) => { const t = Date.now(); try { const r = await real(u, o); log.push([Date.now() - t, r.status, String(u).replace('https://', '').slice(0, 110)]); return r; } catch (e) { log.push([Date.now() - t, 'ERR ' + e.message, String(u).slice(0, 110)]); throw e; } };
-const checker = require('../docs/checker.js');
+// Fetches the LIVE site and reports which version of the code it is serving.
+const base = 'https://inkonchainairdropsimulator.vercel.app';
 (async () => {
-  for (const [name, addr] of [['user wallet', '0x2ff5131f1f349b8079054cbe23aed21a54810391']]) {
-    log.length = 0; const t = Date.now();
-    const r = await checker.check({ address: addr, github: 'chinex11', gmLookup: gm.lookupGm });
-    console.log('\n== ' + name + ': total ' + (Date.now() - t) + ' ms, requests ' + log.length);
-    r.categories.forEach((c) => { console.log(c.name + ' ' + c.score + '/' + c.max); c.items.forEach((i) => console.log('   ' + i.label.padEnd(28) + String(i.display).padEnd(22) + '+' + i.pts + '/' + i.max + '  ' + i.note)); });
-    console.log('Score', r.score, '/', r.totalMax, 'sybil', JSON.stringify(r.sybil), 'warnings', JSON.stringify(r.warnings));
-    log.slice().sort((a, b) => b[0] - a[0]).slice(0, 4).forEach((l) => console.log('  slow: ' + l[0] + 'ms ' + l[1] + ' ' + l[2]));
-    console.log('  non-200:', JSON.stringify(log.filter((l) => l[1] !== 200).slice(0, 5)));
+  for (const p of ['/', '/checker.js?v=4', '/checker.js', '/api/gm?address=0xae47622426ae6c74baa8c75c07304b6e53e4c444']) {
+    const r = await fetch(base + p, { headers: { 'Cache-Control': 'no-cache' } });
+    const t = await r.text();
+    const h = (k) => r.headers.get(k);
+    const marks = ['checker.js?v=4', 'taking too long', 'done (', 'within(', 'chainOut', 'rkScore', 'TIME_BUDGET', 'MAX_PAGES = 6'].filter((m) => t.includes(m));
+    console.log(p, '->', r.status, 'bytes', t.length, '| cache-control:', h('cache-control'), '| x-vercel-cache:', h('x-vercel-cache'), '| age:', h('age'));
+    console.log('   markers:', marks.join(', ') || 'none');
   }
 })().catch((e) => { console.error('ERROR', e.message); process.exit(1); });
-// rerun after speed fix
