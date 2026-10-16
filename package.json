@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Unofficial Ink airdrop checker",
-  "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "main": "local-server.js",
+  "scripts": { "start": "node local-server.js" },
   "engines": { "node": ">=18" }
 }

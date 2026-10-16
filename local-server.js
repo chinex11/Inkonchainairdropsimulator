@@ -1,5 +1,5 @@
 'use strict';
-/* Self-host option: node server.js  (Vercel users do not need this file; docs/ is the site and api/gm.js the function). */
+/* Self-host option: node server.js  (Not used on Vercel. Vercel serves docs/ as the site and api/gm.js as a function.). */
 const http = require('http'), fs = require('fs'), path = require('path');
 const checker = require('./docs/checker.js');
 const gm = require('./api/gm.js');

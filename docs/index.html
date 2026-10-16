@@ -255,7 +255,9 @@ $('#f').addEventListener('submit', function(e){
   e.preventDefault();
   var err=$('#err'); err.style.display='none';
   var xfv=$('#xf').value.trim(), xyv=$('#xyears').value.trim();
-  var go=$('#go'); go.disabled=true; go.textContent='Checking…';
+  var go=$('#go');
+  if(!window.InkChecker){ err.textContent='The checker script did not load. Refresh the page and try again.'; err.style.display='block'; return; }
+  go.disabled=true; go.textContent='Checking…';
   var guard=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('This is taking too long. Wait a minute and try again.')); },45000); });
   var run=window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(), xf:xfv===''?null:Number(xfv), xyears:xyv===''?0:Number(xyv),
     onProgress:function(d,t,l){ go.textContent='Checking… '+d+' of '+t+' done ('+l+')'; }});
