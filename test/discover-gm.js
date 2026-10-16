@@ -25,3 +25,4 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   console.log('FAIL: live site never served the new checker.js'); process.exit(1);
 })().catch((e) => { console.error('ERROR', e.message); process.exit(1); });
+// recheck after removing server entrypoint
