@@ -11,7 +11,7 @@ function (gm.ink sends no CORS headers, so the page reads the GM leaderboard thr
 
 ## Run locally
 
-    node local-server.js     # Node 18+, no install, http://localhost:3000
+    node tools/local-server.js     # Node 18+, no install, http://localhost:3000
 
 ## What is read
 

@@ -1,10 +1,10 @@
 'use strict';
 /* Self-host option: node server.js  (Not used on Vercel. Vercel serves docs/ as the site and api/gm.js as a function.). */
 const http = require('http'), fs = require('fs'), path = require('path');
-const checker = require('./docs/checker.js');
-const gm = require('./api/gm.js');
+const checker = require('../docs/checker.js');
+const gm = require('../api/gm.js');
 const PORT = Number(process.env.PORT || 3000);
-const PUB = path.join(__dirname, 'docs');
+const PUB = path.join(__dirname, '..', 'docs');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 const hits = new Map();
 const limited = (ip) => { const now = Date.now(), a = (hits.get(ip) || []).filter((t) => now - t < 60000); a.push(now); hits.set(ip, a); return a.length > 30; };
