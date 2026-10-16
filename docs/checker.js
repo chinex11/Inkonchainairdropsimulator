@@ -38,8 +38,9 @@
       .then(function (j) { if (j.error) throw new Error(j.error.message || 'rpc error'); return j.result; });
   }
 
-  async function checkChain(address, warnings) {
-    var out = { txCount: null, months: null, apps: null, deployed: null, firstTs: null, valueUsd: null, sampled: false };
+  function within(p, ms, fallback) { return Promise.race([p, new Promise(function (r) { setTimeout(function () { r(fallback); }, ms); })]); }
+
+  async function checkChain(address, warnings, out) {
     var started = Date.now();
     try { out.txCount = parseInt(await rpc('eth_getTransactionCount', [address, 'latest']), 16); }
     catch (e) { warnings.push('Ink RPC lookup failed (' + e.message + '). Transaction count is unavailable.'); }
@@ -182,12 +183,17 @@
     var warnings = [], address = q.address.toLowerCase();
     var gmP = (q.gmLookup ? q.gmLookup(address) : (typeof location !== 'undefined' ? getJson('/api/gm?address=' + address) : Promise.reject(new Error('no GM endpoint'))))
       .catch(function (e) { warnings.push('Ink GM lookup failed (' + e.message + ').'); return null; });
+    var chainOut = { txCount: null, months: null, apps: null, deployed: null, firstTs: null, valueUsd: null, sampled: false };
+    var chainP = within(checkChain(address, warnings, chainOut).then(function () { return 'ok'; }, function (e) { warnings.push('Ink lookup failed (' + e.message + ').'); return 'ok'; }), 25000, 'slow')
+      .then(function (v) { if (v === 'slow') warnings.push('The Ink explorer was slow, so some wallet activity items are missing. Try again in a minute.'); return chainOut; });
+    var ghP = within(checkGithub(github, warnings), 20000, { found: false, error: true });
+    gmP = within(gmP, 15000, null);
     var done = 0, step = function (label) { return function (v) { done++; if (q.onProgress) q.onProgress(done, 3, label); return v; }; };
     var statsP = getJson(EXPLORER + '/api/v2/stats').then(function (st) {
       var a = Number(st.total_addresses), t = Number(st.total_transactions);
       return a > 0 && t > 0 ? { addresses: a, transactions: t } : null;
     }).catch(function () { return null; });
-    var r = await Promise.all([checkChain(address, warnings).then(step('Ink activity')), checkGithub(github, warnings).then(step('GitHub')), gmP.then(step('GM rank')), statsP]);
+    var r = await Promise.all([chainP.then(step('Ink activity')), ghP.then(step('GitHub')), gmP.then(step('GM rank')), within(statsP, 10000, null)]);
     var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2]);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
     var stats = r[3], txRank = null;

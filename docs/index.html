@@ -170,7 +170,7 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
   <footer>GitHub and X usernames are not verified as yours, since there is no sign-in. Anyone can look up any public wallet or username. Wallet history is read from the public Ink explorer and RPC.</footer>
 </div>
 
-<script src="checker.js"></script>
+<script src="checker.js?v=4"></script>
 <script>
 (function(){
 var SUPPLY=1000000000, $=function(s){return document.querySelector(s);};
@@ -256,7 +256,7 @@ $('#f').addEventListener('submit', function(e){
   var err=$('#err'); err.style.display='none';
   var xfv=$('#xf').value.trim(), xyv=$('#xyears').value.trim();
   var go=$('#go'); go.disabled=true; go.textContent='Checking…';
-  var guard=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('This is taking too long. Wait a minute and try again.')); },60000); });
+  var guard=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('This is taking too long. Wait a minute and try again.')); },45000); });
   var run=window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(), xf:xfv===''?null:Number(xfv), xyears:xyv===''?0:Number(xyv),
     onProgress:function(d,t,l){ go.textContent='Checking… '+d+' of '+t+' done ('+l+')'; }});
   Promise.race([run,guard])
