@@ -138,7 +138,7 @@
     return out;
   }
 
-  function score(chain, gh, xf, xyears, gm) {
+  function score(chain, gh, xf, xyears, gm, kraken) {
     var cats = [], c = [], g = [], s = [], m = [], idn = [], df = [];
     c.push(chain.txCount == null ? na('tx', 'Transactions on Ink', maxOf(TIERS_TX), 'RPC unreachable')
       : item('tx', 'Transactions on Ink', chain.txCount, String(chain.txCount), tier(chain.txCount, TIERS_TX), maxOf(TIERS_TX), 'Outgoing transactions (account nonce)'));
@@ -156,7 +156,8 @@
       : item('domains', '.ink domain owned', chain.domains, String(chain.domains), tier(chain.domains, TIERS_DOMAINS), maxOf(TIERS_DOMAINS), chain.domains ? 'ZNS Connect names held by this wallet' : 'Get one at zns.bio to score here'));
     idn.push(chain.nftCollections == null ? na('nfts', 'Ink NFT collections held', maxOf(TIERS_NFTS), 'NFT list unreachable')
       : item('nfts', 'Ink NFT collections held', chain.nftCollections, String(chain.nftCollections), tier(chain.nftCollections, TIERS_NFTS), maxOf(TIERS_NFTS), 'Different collections, not counting .ink domains'));
-    cats.push({ id: 'ident', name: 'Ink identity', note: 'Domains and collectibles, read from your token balances.', items: idn });
+    idn.push(item('kraken', 'Kraken verified account', kraken ? 1 : 0, kraken ? 'Yes (self-declared)' : 'No', kraken ? 3 : 0, 3, 'Kraken account status is private and cannot be checked from a wallet, so this is taken on trust'));
+    cats.push({ id: 'ident', name: 'Ink identity', note: 'Domains and collectibles are read from your token balances. Kraken status is self-declared.', items: idn });
 
     var TS = 6, TB = 2;
     df.push(chain.tydroSupply == null ? na('tsupply', 'Tydro lending deposit', TS, 'Token balances unreachable')
@@ -234,7 +235,7 @@
       return a > 0 && t > 0 ? { addresses: a, transactions: t } : null;
     }).catch(function () { return null; });
     var r = await Promise.all([chainP.then(step('Ink activity')), ghP.then(step('GitHub')), gmP.then(step('GM rank')), within(statsP, 10000, null)]);
-    var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2]);
+    var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2], !!q.kraken);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
     var stats = r[3], txRank = null;
     if (stats && r[0].txCount > 0) {
