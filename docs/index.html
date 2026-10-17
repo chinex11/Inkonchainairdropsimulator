@@ -100,7 +100,7 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
     <p class="sub">Paste a wallet address. Your browser reads its activity from Ink, adds GitHub and X if you give usernames, and scores it. You do not connect or sign anything.</p>
   </header>
 
-  <div class="notice"><b>Estimate only.</b> Not from the Ink Foundation or Kraken, and no official criteria exist. The scoring follows the kind of points model Arbitrum used. Token amounts depend on the pool assumptions you set below.</div>
+  <div class="notice"><b>Estimate only.</b> Not from the Ink Foundation or Kraken. The Foundation has said it will airdrop an INK token (1 billion cap) and named its Aave-based lending pool (Tydro) as the first route, but it has not published a points formula. Every weight here is my assumption, in the style of Arbitrum's points model.</div>
 
   <form class="lookup" id="f" autocomplete="off">
     <div class="fields">
@@ -129,6 +129,8 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
         <p style="margin:0">Enter a wallet address above. These are checked automatically:</p>
         <ul>
           <li>Ink: transactions, active months, apps used, holdings, contracts deployed, first transaction date</li>
+          <li>Ink identity: .ink domains (ZNS Connect) and NFT collections held</li>
+          <li>Ink DeFi: Tydro lending deposits and loans, Tydro points, token transfers, gas used</li>
           <li>Ink GM: your rank, streak and people greeted on the gm.ink leaderboard</li>
           <li>GitHub: commits and merged pull requests to Ink organisations</li>
           <li>X: you type your follower count, since X blocks free lookups</li>
@@ -155,10 +157,10 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
         <div class="assume">
           <div class="a"><label for="a-pct">Share of supply airdropped <span id="a-pct-v"></span></label><input type="range" id="a-pct" min="1" max="20" step="0.5" value="7"><p class="small">Arbitrum gave about 11.6%.</p></div>
           <div class="a"><label for="a-wallets">Other eligible wallets</label><input type="number" id="a-wallets" min="1" value="250000"></div>
-          <div class="a"><label for="a-avg">Their average score</label><input type="number" id="a-avg" min="1" value="22"></div>
-          <div class="a"><label for="a-min">Minimum score to qualify</label><input type="number" id="a-min" min="0" value="10"></div>
+          <div class="a"><label for="a-avg">Their average score</label><input type="number" id="a-avg" min="1" value="28"></div>
+          <div class="a"><label for="a-min">Minimum score to qualify</label><input type="number" id="a-min" min="0" value="12"></div>
           <div class="a"><label for="a-cap">Cap per wallet (INK)</label><input type="number" id="a-cap" min="1" value="250000"></div>
-          <div class="a"><label for="a-typ">Typical score of any Ink wallet</label><input type="number" id="a-typ" min="0.5" step="0.5" value="6"><p class="small">Used for the score rank estimate.</p></div>
+          <div class="a"><label for="a-typ">Typical score of any Ink wallet</label><input type="number" id="a-typ" min="0.5" step="0.5" value="8"><p class="small">Used for the score rank estimate.</p></div>
           <div class="a"><label for="a-fdv">Assumed FDV (USD)</label><input type="number" id="a-fdv" min="1" value="500000000"></div>
           <div><div class="s"><i id="poolBar"></i></div><p class="small" id="poolTxt"></p></div>
         </div>
@@ -178,8 +180,8 @@ var fmt=function(n,d){return Number(n).toLocaleString('en-US',{maximumFractionDi
 var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
 var last=null, isExample=false;
 
-var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:49,rawScore:49,totalMax:90,sybil:{factor:1,flags:[]},
- tiers:[{n:'Droplet',min:10},{n:'Quill',min:24},{n:'Nib',min:42},{n:'Inkwell',min:66}],warnings:[],chainStats:{addresses:4200000,transactions:300000000},txRank:{rank:21400,pct:0.51},
+var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:65,rawScore:65,totalMax:113,sybil:{factor:1,flags:[]},
+ tiers:[{n:'Droplet',min:12},{n:'Quill',min:30},{n:'Nib',min:53},{n:'Inkwell',min:82}],warnings:[],chainStats:{addresses:4200000,transactions:300000000},txRank:{rank:21400,pct:0.51},
  categories:[
   {id:'chain',name:'Wallet activity',note:'Read live from Ink.',score:27,max:44,items:[
    {label:'Transactions on Ink',display:'182',pts:11,max:14,note:'Outgoing transactions (account nonce)'},
@@ -187,6 +189,15 @@ var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:49,rawSco
    {label:'Different apps used',display:'9',pts:5,max:8,note:'Unique contracts you called'},
    {label:'Value held on Ink',display:'$1,420',pts:5,max:8,note:'ETH plus priced ERC-20s now'},
    {label:'Early adopter',display:'2025-01-14',pts:3,max:4,note:'Date of your first transaction'}]},
+  {id:'ident',name:'Ink identity',note:'Domains and collectibles, read from your token balances.',score:5,max:7,items:[
+   {label:'.ink domain owned',display:'1',pts:3,max:4,note:'ZNS Connect names held by this wallet'},
+   {label:'Ink NFT collections held',display:'4',pts:2,max:3,note:'Different collections, not counting .ink domains'}]},
+  {id:'defi',name:'Ink DeFi and usage',note:'Lending on Tydro and how much you use the chain.',score:11,max:16,items:[
+   {label:'Tydro lending deposit',display:'Active',pts:6,max:6,note:'Aave-based lending on Ink, the route the Foundation named first. Counts positions open now'},
+   {label:'Tydro borrowing',display:'None',pts:0,max:2,note:'An open loan counts as extra use'},
+   {label:'Tydro Ink Points held',display:'42',pts:1,max:2,note:'Balance of the Tydro points token'},
+   {label:'Token transfers',display:'96',pts:2,max:3,note:'Swaps, sends and mints that moved tokens'},
+   {label:'Gas used',display:'18.4M',pts:2,max:3,note:'Total gas your transactions consumed'}]},
   {id:'gm',name:'Ink GM',note:'Your rank on the gm.ink leaderboard, read live.',score:12,max:15,items:[
    {label:'GM leaderboard rank',display:'#4,812 of 605,274',pts:10,max:10,note:'Top 0.80%'},
    {label:'GM streak',display:'12 days',pts:1,max:3,note:'Consecutive daily check-ins'},
@@ -214,7 +225,7 @@ function renderMain(r){
 }
 function assume(){
   var g=function(id,d){var v=Number($(id).value);return isFinite(v)&&v>=0?v:d;};
-  return {pct:g('#a-pct',7),wallets:g('#a-wallets',250000),avg:g('#a-avg',18),min:g('#a-min',10),typ:g('#a-typ',6),cap:g('#a-cap',250000),fdv:g('#a-fdv',500000000)};
+  return {pct:g('#a-pct',7),wallets:g('#a-wallets',250000),avg:g('#a-avg',28),min:g('#a-min',12),typ:g('#a-typ',8),cap:g('#a-cap',250000),fdv:g('#a-fdv',500000000)};
 }
 function renderResult(){
   var A=assume(), pool=SUPPLY*A.pct/100;

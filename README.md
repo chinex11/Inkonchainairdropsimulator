@@ -20,9 +20,11 @@ function (gm.ink sends no CORS headers, so the page reads the GM leaderboard thr
 - **GitHub search API**: commits and merged PRs to the `inkonchain` org.
 - **X**: not readable without a paid API key, so followers are typed in.
 
-## Scoring (max 90, edit the tier tables at the top of `docs/checker.js`)
+## Scoring (max 113, edit the tier tables at the top of `docs/checker.js`)
 
 - Wallet activity 44: transactions 14, active months 10, apps 8, value held 8, early adopter 4
+- Ink identity 7: .ink domain owned (ZNS Connect) up to 4, NFT collections held up to 3
+- Ink DeFi and usage 16: Tydro lending deposit 6, Tydro borrowing 2, Tydro points held 2, token transfers 3, gas used 3
 - Ink GM 15: leaderboard rank by percentile 10 (top 1% = 10, 5% = 8, 10% = 6, 25% = 4, 50% = 2, any rank = 1), streak 3, people greeted 2
 - GitHub 20: commits 11, merged PRs 6, contracts deployed 3
 - X reach 11: followers 9, account age 2
@@ -31,7 +33,7 @@ Two farming rules halve the score each: 200+ transactions to 2 or fewer apps, an
 
 ## Limits
 
-- Ink has announced no airdrop, so every weight and pool number is an assumption.
+- The Ink Foundation has confirmed an INK token (1B cap) and an airdrop, naming its Aave-based lending pool (Tydro) as the first route, but has published no points formula. Every weight here is an assumption.
 - The GM leaderboard is refreshed by gm.ink every few days, and the endpoint is not a documented public API, so it can change.
 - Value held on Ink stands in for bridged volume.
 - Wallets with more than 300 transactions are only partly read, so months and apps can be understated.

@@ -18,10 +18,18 @@
   var TIERS_STREAK = [[7, 1], [30, 2], [100, 3]];
   var TIERS_GM_PEOPLE = [[5, 1], [25, 2]];
   var GM_RANK_MAX = 10;
-  var TIERS_LABELS = [{ n: 'Droplet', min: 10 }, { n: 'Quill', min: 24 }, { n: 'Nib', min: 42 }, { n: 'Inkwell', min: 66 }];
+  var TIERS_DOMAINS = [[1, 3], [3, 4]];
+  var TIERS_NFTS = [[1, 1], [3, 2], [8, 3]];
+  var TIERS_TRANSFERS = [[10, 1], [50, 2], [200, 3]];
+  var TIERS_GAS = [[1e6, 1], [1e7, 2], [5e7, 3]];
+  var TIERS_TYDRO_POINTS = [[1, 1], [100, 2]];
+  var ZNS_ADDR = '0xfb2cd41a8aec89efbb19575c6c48d872ce97a0a5';      // ZNS Connect, the .ink domain NFT
+  var TYDRO_POINTS_ADDR = '0x40abd730cc9da34a8ee9823feabdba35e50c4ac7'; // Tydro Ink Points token
+  var TIERS_LABELS = [{ n: 'Droplet', min: 12 }, { n: 'Quill', min: 30 }, { n: 'Nib', min: 53 }, { n: 'Inkwell', min: 82 }];
 
   function tier(v, t) { var p = 0; for (var i = 0; i < t.length; i++) if (v >= t[i][0]) p = t[i][1]; return p; }
   function maxOf(t) { return t[t.length - 1][1]; }
+  function fmtNum(n) { n = Number(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(Math.round(n * 100) / 100); }
   function item(id, label, value, display, pts, max, note) { return { id: id, label: label, value: value, display: display, pts: pts, max: max, note: note || '' }; }
   function na(id, label, max, note) { return item(id, label, null, 'unavailable', 0, max, note); }
 
@@ -51,15 +59,28 @@
       try {
         var info = await getJson(base), usd = (Number(info.coin_balance || 0) / 1e18) * Number(info.exchange_rate || 0);
         try {
-          var toks = await getJson(base + '/token-balances');
+          var toks = await getJson(base + '/token-balances'), domains = 0, supply = false, debt = false, pts = 0;
           (Array.isArray(toks) ? toks : []).forEach(function (t) {
-            var tk = t.token || {};
+            var tk = t.token || {}, dec = Number(tk.decimals || 18), amt = Number(t.value || 0);
+            var addr = String(tk.address_hash || tk.address || '').toLowerCase(), name = String(tk.name || '');
+            if (addr === ZNS_ADDR) { domains += amt; return; }
             if (tk.type && tk.type !== 'ERC-20') return;
-            usd += (Number(t.value || 0) / Math.pow(10, Number(tk.decimals || 18))) * Number(tk.exchange_rate || 0);
+            if (amt > 0 && /^Aave InkWhitelabel/.test(name)) { if (/Variable Debt/.test(name)) debt = true; else supply = true; }
+            if (addr === TYDRO_POINTS_ADDR) pts = amt / Math.pow(10, dec);
+            usd += (amt / Math.pow(10, dec)) * Number(tk.exchange_rate || 0);
           });
-        } catch (e) { warnings.push('Token balances could not be read, so holdings count ETH only.'); }
+          out.domains = domains; out.tydroSupply = supply; out.tydroDebt = debt; out.tydroPoints = pts;
+        } catch (e) { warnings.push('Token balances could not be read, so holdings, domains and Tydro positions are missing.'); }
         out.valueUsd = usd;
       } catch (e) { warnings.push('Holdings could not be read (' + e.message + ').'); }
+    })();
+
+    var extras = (async function () {
+      try { var c = await getJson(base + '/counters'); out.tokenTransfers = Number(c.token_transfers_count || 0); out.gasUsed = Number(c.gas_usage_count || 0); } catch (e) { /* items show unavailable */ }
+      try {
+        var n = await getJson(base + '/nft/collections');
+        out.nftCollections = (n.items || []).filter(function (x) { return String((x.token && x.token.address_hash) || '').toLowerCase() !== ZNS_ADDR; }).length;
+      } catch (e) { /* item shows unavailable */ }
     })();
 
     var history = (async function () {
@@ -87,10 +108,10 @@
       var f = a.items && a.items[0] && Date.parse(a.items[0].timestamp); return f && !isNaN(f) ? f : null;
     }).catch(function () { return null; }) : Promise.resolve(null);
 
-    var res = await Promise.all([holdings, history, oldest]);
+    var res = await Promise.all([holdings, extras, history, oldest]);
     if (out.sampled) {
       warnings.push('Large wallet: only the newest ' + (MAX_PAGES * 50) + ' transactions were read to keep this fast, so months active, apps used and deployments are estimates.');
-      if (res[2]) { out.firstTs = res[2]; if (out.months != null) out.months = Math.max(out.months, Math.round((Date.now() - res[2]) / (30.4 * DAY))); }
+      if (res[3]) { out.firstTs = res[3]; if (out.months != null) out.months = Math.max(out.months, Math.round((Date.now() - res[3]) / (30.4 * DAY))); }
     }
     return out;
   }
@@ -118,7 +139,7 @@
   }
 
   function score(chain, gh, xf, xyears, gm) {
-    var cats = [], c = [], g = [], s = [], m = [];
+    var cats = [], c = [], g = [], s = [], m = [], idn = [], df = [];
     c.push(chain.txCount == null ? na('tx', 'Transactions on Ink', maxOf(TIERS_TX), 'RPC unreachable')
       : item('tx', 'Transactions on Ink', chain.txCount, String(chain.txCount), tier(chain.txCount, TIERS_TX), maxOf(TIERS_TX), 'Outgoing transactions (account nonce)'));
     c.push(chain.months == null ? na('months', 'Active months', maxOf(TIERS_MONTHS), 'Explorer unreachable')
@@ -130,6 +151,25 @@
     if (chain.firstTs == null) c.push(na('early', 'Early adopter', 4, chain.months == null ? 'Explorer unreachable' : 'No transactions found'));
     else { var d = (chain.firstTs - MAINNET_LAUNCH) / DAY; c.push(item('early', 'Early adopter', chain.firstTs, new Date(chain.firstTs).toISOString().slice(0, 10), d <= 30 ? 4 : d <= 180 ? 3 : 2, 4, 'Date of your first transaction')); }
     cats.push({ id: 'chain', name: 'Wallet activity', note: 'Read live from Ink.', items: c });
+
+    idn.push(chain.domains == null ? na('domains', '.ink domain owned', maxOf(TIERS_DOMAINS), 'Token balances unreachable')
+      : item('domains', '.ink domain owned', chain.domains, String(chain.domains), tier(chain.domains, TIERS_DOMAINS), maxOf(TIERS_DOMAINS), chain.domains ? 'ZNS Connect names held by this wallet' : 'Get one at zns.bio to score here'));
+    idn.push(chain.nftCollections == null ? na('nfts', 'Ink NFT collections held', maxOf(TIERS_NFTS), 'NFT list unreachable')
+      : item('nfts', 'Ink NFT collections held', chain.nftCollections, String(chain.nftCollections), tier(chain.nftCollections, TIERS_NFTS), maxOf(TIERS_NFTS), 'Different collections, not counting .ink domains'));
+    cats.push({ id: 'ident', name: 'Ink identity', note: 'Domains and collectibles, read from your token balances.', items: idn });
+
+    var TS = 6, TB = 2;
+    df.push(chain.tydroSupply == null ? na('tsupply', 'Tydro lending deposit', TS, 'Token balances unreachable')
+      : item('tsupply', 'Tydro lending deposit', chain.tydroSupply ? 1 : 0, chain.tydroSupply ? 'Active' : 'None', chain.tydroSupply ? TS : 0, TS, 'Aave-based lending on Ink, the route the Foundation named first. Counts positions open now'));
+    df.push(chain.tydroDebt == null ? na('tborrow', 'Tydro borrowing', TB, 'Token balances unreachable')
+      : item('tborrow', 'Tydro borrowing', chain.tydroDebt ? 1 : 0, chain.tydroDebt ? 'Active' : 'None', chain.tydroDebt ? TB : 0, TB, 'An open loan counts as extra use'));
+    df.push(chain.tydroPoints == null ? na('tpoints', 'Tydro Ink Points held', maxOf(TIERS_TYDRO_POINTS), 'Token balances unreachable')
+      : item('tpoints', 'Tydro Ink Points held', chain.tydroPoints, fmtNum(chain.tydroPoints), tier(chain.tydroPoints, TIERS_TYDRO_POINTS), maxOf(TIERS_TYDRO_POINTS), 'Balance of the Tydro points token'));
+    df.push(chain.tokenTransfers == null ? na('xfers', 'Token transfers', maxOf(TIERS_TRANSFERS), 'Explorer counters unreachable')
+      : item('xfers', 'Token transfers', chain.tokenTransfers, String(chain.tokenTransfers), tier(chain.tokenTransfers, TIERS_TRANSFERS), maxOf(TIERS_TRANSFERS), 'Swaps, sends and mints that moved tokens'));
+    df.push(chain.gasUsed == null ? na('gas', 'Gas used', maxOf(TIERS_GAS), 'Explorer counters unreachable')
+      : item('gas', 'Gas used', chain.gasUsed, fmtNum(chain.gasUsed), tier(chain.gasUsed, TIERS_GAS), maxOf(TIERS_GAS), 'Total gas your transactions consumed'));
+    cats.push({ id: 'defi', name: 'Ink DeFi and usage', note: 'Lending on Tydro and how much you use the chain.', items: df });
 
     if (!gm) {
       var gw = 'GM data unavailable right now';
@@ -183,7 +223,7 @@
     var warnings = [], address = q.address.toLowerCase();
     var gmP = (q.gmLookup ? q.gmLookup(address) : (typeof location !== 'undefined' ? getJson('/api/gm?address=' + address) : Promise.reject(new Error('no GM endpoint'))))
       .catch(function (e) { warnings.push('Ink GM lookup failed (' + e.message + ').'); return null; });
-    var chainOut = { txCount: null, months: null, apps: null, deployed: null, firstTs: null, valueUsd: null, sampled: false };
+    var chainOut = { txCount: null, months: null, apps: null, deployed: null, firstTs: null, valueUsd: null, sampled: false, domains: null, tydroSupply: null, tydroDebt: null, tydroPoints: null, nftCollections: null, tokenTransfers: null, gasUsed: null };
     var chainP = within(checkChain(address, warnings, chainOut).then(function () { return 'ok'; }, function (e) { warnings.push('Ink lookup failed (' + e.message + ').'); return 'ok'; }), 25000, 'slow')
       .then(function (v) { if (v === 'slow') warnings.push('The Ink explorer was slow, so some wallet activity items are missing. Try again in a minute.'); return chainOut; });
     var ghP = within(checkGithub(github, warnings), 20000, { found: false, error: true });
