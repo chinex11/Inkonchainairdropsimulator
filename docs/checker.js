@@ -14,7 +14,6 @@
   var TIERS_COMMITS = [[1, 3], [5, 6], [20, 9], [50, 11]];
   var TIERS_PRS = [[1, 2], [3, 4], [10, 6]];
   var TIERS_DEPLOYED = [[1, 1], [3, 3]];
-  var TIERS_FOLLOWERS = [[50, 1], [200, 2], [1000, 4], [5000, 6], [20000, 8], [100000, 9]];
   var TIERS_STREAK = [[7, 1], [30, 2], [100, 3]];
   var TIERS_GM_PEOPLE = [[5, 1], [25, 2]];
   var GM_RANK_MAX = 10;
@@ -22,13 +21,11 @@
   var TIERS_NFTS = [[1, 1], [3, 2], [8, 3]];
   var TIERS_TRANSFERS = [[10, 1], [50, 2], [200, 3]];
   var TIERS_GAS = [[1e6, 1], [1e7, 2], [5e7, 3]];
-  var TIERS_TYDRO_POINTS = [[1, 1], [100, 2]];
   var EAS_GQL = 'https://ink.easscan.org/graphql';
   var KRAKEN_SCHEMA = '0x8ffa68bde25f7b88e042ea3dff55ff27217b7d1c4bf24f57967b285c5ffe4c8b'; // 'bool verified' on Ink's EAS
   var KRAKEN_ATTESTER = '0xfDB645Fe7868064bF3934f307A918C817e759fF6';
   var ZNS_ADDR = '0xfb2cd41a8aec89efbb19575c6c48d872ce97a0a5';      // ZNS Connect, the .ink domain NFT
-  var TYDRO_POINTS_ADDR = '0x40abd730cc9da34a8ee9823feabdba35e50c4ac7'; // Tydro Ink Points token
-  var TIERS_LABELS = [{ n: 'Droplet', min: 12 }, { n: 'Quill', min: 30 }, { n: 'Nib', min: 53 }, { n: 'Inkwell', min: 82 }];
+  var TIERS_LABELS = [{ n: 'Droplet', min: 10 }, { n: 'Quill', min: 25 }, { n: 'Nib', min: 45 }, { n: 'Inkwell', min: 69 }];
 
   function tier(v, t) { var p = 0; for (var i = 0; i < t.length; i++) if (v >= t[i][0]) p = t[i][1]; return p; }
   function maxOf(t) { return t[t.length - 1][1]; }
@@ -62,18 +59,16 @@
       try {
         var info = await getJson(base), usd = (Number(info.coin_balance || 0) / 1e18) * Number(info.exchange_rate || 0);
         try {
-          var toks = await getJson(base + '/token-balances'), domains = 0, supply = false, debt = false, pts = 0;
+          var toks = await getJson(base + '/token-balances'), domains = 0;
           (Array.isArray(toks) ? toks : []).forEach(function (t) {
             var tk = t.token || {}, dec = Number(tk.decimals || 18), amt = Number(t.value || 0);
             var addr = String(tk.address_hash || tk.address || '').toLowerCase(), name = String(tk.name || '');
             if (addr === ZNS_ADDR) { domains += amt; return; }
             if (tk.type && tk.type !== 'ERC-20') return;
-            if (amt > 0 && /^Aave InkWhitelabel/.test(name)) { if (/Variable Debt/.test(name)) debt = true; else supply = true; }
-            if (addr === TYDRO_POINTS_ADDR) pts = amt / Math.pow(10, dec);
             usd += (amt / Math.pow(10, dec)) * Number(tk.exchange_rate || 0);
           });
-          out.domains = domains; out.tydroSupply = supply; out.tydroDebt = debt; out.tydroPoints = pts;
-        } catch (e) { warnings.push('Token balances could not be read, so holdings, domains and Tydro positions are missing.'); }
+          out.domains = domains;
+        } catch (e) { warnings.push('Token balances could not be read, so holdings and domains are missing.'); }
         out.valueUsd = usd;
       } catch (e) { warnings.push('Holdings could not be read (' + e.message + ').'); }
     })();
@@ -150,8 +145,8 @@
     return out;
   }
 
-  function score(chain, gh, xf, xyears, gm, kraken) {
-    var cats = [], c = [], g = [], s = [], m = [], idn = [], df = [];
+  function score(chain, gh, gm, kraken) {
+    var cats = [], c = [], g = [], m = [], idn = [], df = [];
     c.push(chain.txCount == null ? na('tx', 'Transactions on Ink', maxOf(TIERS_TX), 'RPC unreachable')
       : item('tx', 'Transactions on Ink', chain.txCount, String(chain.txCount), tier(chain.txCount, TIERS_TX), maxOf(TIERS_TX), 'Outgoing transactions (account nonce)'));
     c.push(chain.months == null ? na('months', 'Active months', maxOf(TIERS_MONTHS), 'Explorer unreachable')
@@ -173,18 +168,11 @@
       : item('kraken', 'Kraken verified wallet', 0, 'Not verified', 0, 3, 'No active record found. Link this wallet to a verified Kraken account to get one'));
     cats.push({ id: 'ident', name: 'Ink identity', note: 'Domains and collectibles come from your token balances. Kraken verification is read from the onchain record.', items: idn });
 
-    var TS = 6, TB = 2;
-    df.push(chain.tydroSupply == null ? na('tsupply', 'Tydro lending deposit', TS, 'Token balances unreachable')
-      : item('tsupply', 'Tydro lending deposit', chain.tydroSupply ? 1 : 0, chain.tydroSupply ? 'Active' : 'None', chain.tydroSupply ? TS : 0, TS, 'Aave-based lending on Ink, the route the Foundation named first. Counts positions open now'));
-    df.push(chain.tydroDebt == null ? na('tborrow', 'Tydro borrowing', TB, 'Token balances unreachable')
-      : item('tborrow', 'Tydro borrowing', chain.tydroDebt ? 1 : 0, chain.tydroDebt ? 'Active' : 'None', chain.tydroDebt ? TB : 0, TB, 'An open loan counts as extra use'));
-    df.push(chain.tydroPoints == null ? na('tpoints', 'Tydro Ink Points held', maxOf(TIERS_TYDRO_POINTS), 'Token balances unreachable')
-      : item('tpoints', 'Tydro Ink Points held', chain.tydroPoints, fmtNum(chain.tydroPoints), tier(chain.tydroPoints, TIERS_TYDRO_POINTS), maxOf(TIERS_TYDRO_POINTS), 'Balance of the Tydro points token'));
     df.push(chain.tokenTransfers == null ? na('xfers', 'Token transfers', maxOf(TIERS_TRANSFERS), 'Explorer counters unreachable')
       : item('xfers', 'Token transfers', chain.tokenTransfers, String(chain.tokenTransfers), tier(chain.tokenTransfers, TIERS_TRANSFERS), maxOf(TIERS_TRANSFERS), 'Swaps, sends and mints that moved tokens'));
     df.push(chain.gasUsed == null ? na('gas', 'Gas used', maxOf(TIERS_GAS), 'Explorer counters unreachable')
       : item('gas', 'Gas used', chain.gasUsed, fmtNum(chain.gasUsed), tier(chain.gasUsed, TIERS_GAS), maxOf(TIERS_GAS), 'Total gas your transactions consumed'));
-    cats.push({ id: 'defi', name: 'Ink DeFi and usage', note: 'Lending on Tydro and how much you use the chain.', items: df });
+    cats.push({ id: 'usage', name: 'Ink usage', note: 'How much you use the chain, from the explorer.', items: df });
 
     if (!gm) {
       var gw = 'GM data unavailable right now';
@@ -211,15 +199,6 @@
       : item('deployed', 'Contracts deployed on Ink', chain.deployed, String(chain.deployed), tier(chain.deployed, TIERS_DEPLOYED), maxOf(TIERS_DEPLOYED), 'Contract creations from this wallet'));
     cats.push({ id: 'dev', name: 'GitHub', note: 'Contributions to Ink organisations, plus contracts you deployed.', items: g });
 
-    if (xf != null) {
-      var yrs = xyears || 0, yp = yrs >= 3 ? 2 : yrs >= 1 ? 1 : 0;
-      s.push(item('followers', 'X followers', xf, xf.toLocaleString('en-US'), tier(xf, TIERS_FOLLOWERS), maxOf(TIERS_FOLLOWERS), 'Typed by you'));
-      s.push(item('xage', 'X account age', yrs, yrs + ' yrs', yp, 2, 'Typed by you'));
-    } else {
-      var w = 'X cannot be read without an API key. Type your followers to score this.';
-      s.push(na('followers', 'X followers', maxOf(TIERS_FOLLOWERS), w)); s.push(na('xage', 'X account age', 2, w));
-    }
-    cats.push({ id: 'social', name: 'X reach', note: 'Follower count and account age.', items: s });
     cats.forEach(function (k) { k.score = k.items.reduce(function (a, i) { return a + i.pts; }, 0); k.max = k.items.reduce(function (a, i) { return a + i.max; }, 0); });
     return cats;
   }
@@ -238,7 +217,7 @@
     var warnings = [], address = q.address.toLowerCase();
     var gmP = (q.gmLookup ? q.gmLookup(address) : (typeof location !== 'undefined' ? getJson('/api/gm?address=' + address) : Promise.reject(new Error('no GM endpoint'))))
       .catch(function (e) { warnings.push('Ink GM lookup failed (' + e.message + ').'); return null; });
-    var chainOut = { txCount: null, months: null, apps: null, deployed: null, firstTs: null, valueUsd: null, sampled: false, domains: null, tydroSupply: null, tydroDebt: null, tydroPoints: null, nftCollections: null, tokenTransfers: null, gasUsed: null };
+    var chainOut = { txCount: null, months: null, apps: null, deployed: null, firstTs: null, valueUsd: null, sampled: false, domains: null, nftCollections: null, tokenTransfers: null, gasUsed: null };
     var chainP = within(checkChain(address, warnings, chainOut).then(function () { return 'ok'; }, function (e) { warnings.push('Ink lookup failed (' + e.message + ').'); return 'ok'; }), 25000, 'slow')
       .then(function (v) { if (v === 'slow') warnings.push('The Ink explorer was slow, so some wallet activity items are missing. Try again in a minute.'); return chainOut; });
     var ghP = within(checkGithub(github, warnings), 20000, { found: false, error: true });
@@ -250,7 +229,7 @@
       return a > 0 && t > 0 ? { addresses: a, transactions: t } : null;
     }).catch(function () { return null; });
     var r = await Promise.all([chainP.then(step('Ink activity')), ghP.then(step('GitHub')), gmP.then(step('GM rank')), within(statsP, 10000, null), krP.then(step('Kraken Verify'))]);
-    var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2], r[4]);
+    var cats = score(r[0], r[1], r[2], r[4]);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
     var stats = r[3], txRank = null;
     if (stats && r[0].txCount > 0) {

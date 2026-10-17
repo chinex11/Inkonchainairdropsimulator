@@ -32,7 +32,7 @@ h1{font:800 clamp(30px,6vw,52px)/1.02 var(--f-display);margin:6px 0 0;letter-spa
 .notice{border:1px solid var(--line);background:var(--card);padding:10px 14px;border-radius:8px;font-size:13px;color:var(--muted);margin-bottom:18px}
 .notice b{color:var(--fg)}
 .lookup{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:22px}
-.fields{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
+.fields{display:grid;grid-template-columns:2fr 1fr;gap:12px}
 .fields label,.lbl{display:block;font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 input[type=text],input[type=number],select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font:500 14px var(--f-mono)}
 input:focus-visible,button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -98,24 +98,16 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
   <header>
     <div class="tag">Unofficial checker &middot; 1,000,000,000 supply</div>
     <h1>Ink Airdrop Checker</h1>
-    <p class="sub">Paste a wallet address. Your browser reads its activity from Ink, adds GitHub and X if you give usernames, and scores it. You do not connect or sign anything.</p>
+    <p class="sub">Paste a wallet address. Your browser reads its activity from Ink, adds GitHub if you give a username, and scores it. You do not connect or sign anything.</p>
   </header>
 
-  <div class="notice"><b>Estimate only.</b> Not from the Ink Foundation or Kraken. The Foundation has said it will airdrop an INK token (1 billion cap) and named its Aave-based lending pool (Tydro) as the first route, but it has not published a points formula. Every weight here is my assumption, in the style of Arbitrum's points model.</div>
+  <div class="notice"><b>Estimate only.</b> Not from the Ink Foundation or Kraken. The Foundation has said it will airdrop an INK token (1 billion cap), but it has not published a points formula. Every weight here is my assumption, in the style of Arbitrum's points model.</div>
 
   <form class="lookup" id="f" autocomplete="off">
     <div class="fields">
       <div><label for="address">Wallet address</label><input type="text" id="address" placeholder="0x..." spellcheck="false" required></div>
       <div><label for="github">GitHub username</label><input type="text" id="github" placeholder="optional" spellcheck="false"></div>
-      <div><label for="x">X username</label><input type="text" id="x" placeholder="not used yet" spellcheck="false" disabled></div>
     </div>
-    <details open>
-      <summary>X followers (type them, X cannot be read without an API key)</summary>
-      <div class="fields">
-        <div><label for="xf">X followers</label><input type="number" id="xf" min="0" placeholder="e.g. 850"></div>
-        <div><label for="xyears">Account age (years)</label><input type="number" id="xyears" min="0" step="0.5" placeholder="e.g. 2"></div>
-      </div>
-    </details>
     <div class="actions">
       <button class="go" id="go" type="submit">Check eligibility</button>
       <button class="ghost" id="demo" type="button">Show an example result</button>
@@ -131,10 +123,9 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
         <ul>
           <li>Ink: transactions, active months, apps used, holdings, contracts deployed, first transaction date</li>
           <li>Ink identity: .ink domains (ZNS Connect) and NFT collections held. Kraken verification, read from the onchain verification record on Ink</li>
-          <li>Ink DeFi: Tydro lending deposits and loans, Tydro points, token transfers, gas used</li>
+          <li>Ink usage: token transfers and gas used</li>
           <li>Ink GM: your rank, streak and people greeted on the gm.ink leaderboard</li>
           <li>GitHub: commits and merged pull requests to Ink organisations</li>
-          <li>X: you type your follower count, since X blocks free lookups</li>
         </ul>
       </div>
     </main>
@@ -158,10 +149,10 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
         <div class="assume">
           <div class="a"><label for="a-pct">Share of supply airdropped <span id="a-pct-v"></span></label><input type="range" id="a-pct" min="1" max="20" step="0.5" value="7"><p class="small">Arbitrum gave about 11.6%.</p></div>
           <div class="a"><label for="a-wallets">Other eligible wallets</label><input type="number" id="a-wallets" min="1" value="250000"></div>
-          <div class="a"><label for="a-avg">Their average score</label><input type="number" id="a-avg" min="1" value="28"></div>
-          <div class="a"><label for="a-min">Minimum score to qualify</label><input type="number" id="a-min" min="0" value="12"></div>
+          <div class="a"><label for="a-avg">Their average score</label><input type="number" id="a-avg" min="1" value="24"></div>
+          <div class="a"><label for="a-min">Minimum score to qualify</label><input type="number" id="a-min" min="0" value="10"></div>
           <div class="a"><label for="a-cap">Cap per wallet (INK)</label><input type="number" id="a-cap" min="1" value="250000"></div>
-          <div class="a"><label for="a-typ">Typical score of any Ink wallet</label><input type="number" id="a-typ" min="0.5" step="0.5" value="8"><p class="small">Used for the score rank estimate.</p></div>
+          <div class="a"><label for="a-typ">Typical score of any Ink wallet</label><input type="number" id="a-typ" min="0.5" step="0.5" value="7"><p class="small">Used for the score rank estimate.</p></div>
           <div class="a"><label for="a-fdv">Assumed FDV (USD)</label><input type="number" id="a-fdv" min="1" value="500000000"></div>
           <div><div class="s"><i id="poolBar"></i></div><p class="small" id="poolTxt"></p></div>
         </div>
@@ -181,8 +172,8 @@ var fmt=function(n,d){return Number(n).toLocaleString('en-US',{maximumFractionDi
 var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
 var last=null, isExample=false;
 
-var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:68,rawScore:68,totalMax:116,sybil:{factor:1,flags:[]},
- tiers:[{n:'Droplet',min:12},{n:'Quill',min:30},{n:'Nib',min:53},{n:'Inkwell',min:82}],warnings:[],chainStats:{addresses:4200000,transactions:300000000},txRank:{rank:21400,pct:0.51},
+var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:58,rawScore:58,totalMax:95,sybil:{factor:1,flags:[]},
+ tiers:[{n:'Droplet',min:10},{n:'Quill',min:25},{n:'Nib',min:45},{n:'Inkwell',min:69}],warnings:[],chainStats:{addresses:4200000,transactions:300000000},txRank:{rank:21400,pct:0.51},
  categories:[
   {id:'chain',name:'Wallet activity',note:'Read live from Ink.',score:27,max:44,items:[
    {label:'Transactions on Ink',display:'182',pts:11,max:14,note:'Outgoing transactions (account nonce)'},
@@ -194,10 +185,7 @@ var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:68,rawSco
    {label:'.ink domain owned',display:'1',pts:3,max:4,note:'ZNS Connect names held by this wallet'},
    {label:'Ink NFT collections held',display:'4',pts:2,max:3,note:'Different collections, not counting .ink domains'},
    {label:'Kraken verified wallet',display:'Verified',pts:3,max:3,note:'Onchain verification record on Ink, issued 2025-06-02'}]},
-  {id:'defi',name:'Ink DeFi and usage',note:'Lending on Tydro and how much you use the chain.',score:11,max:16,items:[
-   {label:'Tydro lending deposit',display:'Active',pts:6,max:6,note:'Aave-based lending on Ink, the route the Foundation named first. Counts positions open now'},
-   {label:'Tydro borrowing',display:'None',pts:0,max:2,note:'An open loan counts as extra use'},
-   {label:'Tydro Ink Points held',display:'42',pts:1,max:2,note:'Balance of the Tydro points token'},
+  {id:'usage',name:'Ink usage',note:'How much you use the chain, from the explorer.',score:4,max:6,items:[
    {label:'Token transfers',display:'96',pts:2,max:3,note:'Swaps, sends and mints that moved tokens'},
    {label:'Gas used',display:'18.4M',pts:2,max:3,note:'Total gas your transactions consumed'}]},
   {id:'gm',name:'Ink GM',note:'Your rank on the gm.ink leaderboard, read live.',score:12,max:15,items:[
@@ -207,10 +195,7 @@ var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:68,rawSco
   {id:'dev',name:'GitHub',note:'Contributions to Ink organisations, plus contracts you deployed.',score:7,max:20,items:[
    {label:'Commits to Ink repos',display:'6',pts:6,max:11,note:'Across inkonchain'},
    {label:'Merged pull requests',display:'0',pts:0,max:6,note:''},
-   {label:'Contracts deployed on Ink',display:'1',pts:1,max:3,note:''}]},
-  {id:'social',name:'X reach',note:'Follower count and account age.',score:3,max:11,items:[
-   {label:'X followers',display:'640',pts:2,max:9,note:'Source: typed by user'},
-   {label:'X account age',display:'2 yrs',pts:1,max:2,note:''}]}
+   {label:'Contracts deployed on Ink',display:'1',pts:1,max:3,note:''}]}
  ]};
 
 function row(i){
@@ -227,7 +212,7 @@ function renderMain(r){
 }
 function assume(){
   var g=function(id,d){var v=Number($(id).value);return isFinite(v)&&v>=0?v:d;};
-  return {pct:g('#a-pct',7),wallets:g('#a-wallets',250000),avg:g('#a-avg',28),min:g('#a-min',12),typ:g('#a-typ',8),cap:g('#a-cap',250000),fdv:g('#a-fdv',500000000)};
+  return {pct:g('#a-pct',7),wallets:g('#a-wallets',250000),avg:g('#a-avg',24),min:g('#a-min',10),typ:g('#a-typ',7),cap:g('#a-cap',250000),fdv:g('#a-fdv',500000000)};
 }
 function renderResult(){
   var A=assume(), pool=SUPPLY*A.pct/100;
@@ -267,12 +252,11 @@ function show(r, ex){ last=r; isExample=!!ex; $('#exTag').hidden=!ex; renderMain
 $('#f').addEventListener('submit', function(e){
   e.preventDefault();
   var err=$('#err'); err.style.display='none';
-  var xfv=$('#xf').value.trim(), xyv=$('#xyears').value.trim();
   var go=$('#go');
   if(!window.InkChecker){ err.textContent='The checker script did not load. Refresh the page and try again.'; err.style.display='block'; return; }
   go.disabled=true; go.textContent='Checking…';
   var guard=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('This is taking too long. Wait a minute and try again.')); },45000); });
-  var run=window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(), xf:xfv===''?null:Number(xfv), xyears:xyv===''?0:Number(xyv),
+  var run=window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(),
     onProgress:function(d,t,l){ go.textContent='Checking… '+d+' of '+t+' done ('+l+')'; }});
   Promise.race([run,guard])
   .then(function(r){ show(r,false); })
