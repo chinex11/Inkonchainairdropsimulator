@@ -116,7 +116,6 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
         <div><label for="xyears">Account age (years)</label><input type="number" id="xyears" min="0" step="0.5" placeholder="e.g. 2"></div>
       </div>
     </details>
-    <label class="chk" for="kraken"><input type="checkbox" id="kraken"> <span>I have a verified Kraken account <em>(cannot be checked from a wallet, so it is taken on trust)</em></span></label>
     <div class="actions">
       <button class="go" id="go" type="submit">Check eligibility</button>
       <button class="ghost" id="demo" type="button">Show an example result</button>
@@ -131,7 +130,7 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
         <p style="margin:0">Enter a wallet address above. These are checked automatically:</p>
         <ul>
           <li>Ink: transactions, active months, apps used, holdings, contracts deployed, first transaction date</li>
-          <li>Ink identity: .ink domains (ZNS Connect) and NFT collections held. Kraken verification is a box you tick, because it cannot be read from a wallet</li>
+          <li>Ink identity: .ink domains (ZNS Connect) and NFT collections held. Kraken verification, read from the onchain verification record on Ink</li>
           <li>Ink DeFi: Tydro lending deposits and loans, Tydro points, token transfers, gas used</li>
           <li>Ink GM: your rank, streak and people greeted on the gm.ink leaderboard</li>
           <li>GitHub: commits and merged pull requests to Ink organisations</li>
@@ -191,10 +190,10 @@ var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:68,rawSco
    {label:'Different apps used',display:'9',pts:5,max:8,note:'Unique contracts you called'},
    {label:'Value held on Ink',display:'$1,420',pts:5,max:8,note:'ETH plus priced ERC-20s now'},
    {label:'Early adopter',display:'2025-01-14',pts:3,max:4,note:'Date of your first transaction'}]},
-  {id:'ident',name:'Ink identity',note:'Domains and collectibles, read from your token balances.',score:8,max:10,items:[
+  {id:'ident',name:'Ink identity',note:'Domains and collectibles come from your token balances. Kraken verification is read from the onchain record.',score:8,max:10,items:[
    {label:'.ink domain owned',display:'1',pts:3,max:4,note:'ZNS Connect names held by this wallet'},
    {label:'Ink NFT collections held',display:'4',pts:2,max:3,note:'Different collections, not counting .ink domains'},
-   {label:'Kraken verified account',display:'Yes (self-declared)',pts:3,max:3,note:'Kraken account status is private and cannot be checked from a wallet, so this is taken on trust'}]},
+   {label:'Kraken verified wallet',display:'Verified',pts:3,max:3,note:'Onchain verification record on Ink, issued 2025-06-02'}]},
   {id:'defi',name:'Ink DeFi and usage',note:'Lending on Tydro and how much you use the chain.',score:11,max:16,items:[
    {label:'Tydro lending deposit',display:'Active',pts:6,max:6,note:'Aave-based lending on Ink, the route the Foundation named first. Counts positions open now'},
    {label:'Tydro borrowing',display:'None',pts:0,max:2,note:'An open loan counts as extra use'},
@@ -273,7 +272,7 @@ $('#f').addEventListener('submit', function(e){
   if(!window.InkChecker){ err.textContent='The checker script did not load. Refresh the page and try again.'; err.style.display='block'; return; }
   go.disabled=true; go.textContent='Checking…';
   var guard=new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('This is taking too long. Wait a minute and try again.')); },45000); });
-  var run=window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(), xf:xfv===''?null:Number(xfv), xyears:xyv===''?0:Number(xyv), kraken:$('#kraken').checked,
+  var run=window.InkChecker.check({address:$('#address').value.trim(), github:$('#github').value.trim(), xf:xfv===''?null:Number(xfv), xyears:xyv===''?0:Number(xyv),
     onProgress:function(d,t,l){ go.textContent='Checking… '+d+' of '+t+' done ('+l+')'; }});
   Promise.race([run,guard])
   .then(function(r){ show(r,false); })

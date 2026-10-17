@@ -23,7 +23,7 @@ function (gm.ink sends no CORS headers, so the page reads the GM leaderboard thr
 ## Scoring (max 116, edit the tier tables at the top of `docs/checker.js`)
 
 - Wallet activity 44: transactions 14, active months 10, apps 8, value held 8, early adopter 4
-- Ink identity 10: .ink domain owned (ZNS Connect) up to 4, NFT collections held up to 3, Kraken verified account 3 (self-declared, cannot be checked from a wallet)
+- Ink identity 10: .ink domain owned (ZNS Connect) up to 4, NFT collections held up to 3, Kraken verified wallet 3 (read from the onchain EAS verification record on Ink, via ink.easscan.org)
 - Ink DeFi and usage 16: Tydro lending deposit 6, Tydro borrowing 2, Tydro points held 2, token transfers 3, gas used 3
 - Ink GM 15: leaderboard rank by percentile 10 (top 1% = 10, 5% = 8, 10% = 6, 25% = 4, 50% = 2, any rank = 1), streak 3, people greeted 2
 - GitHub 20: commits 11, merged PRs 6, contracts deployed 3

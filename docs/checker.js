@@ -23,6 +23,9 @@
   var TIERS_TRANSFERS = [[10, 1], [50, 2], [200, 3]];
   var TIERS_GAS = [[1e6, 1], [1e7, 2], [5e7, 3]];
   var TIERS_TYDRO_POINTS = [[1, 1], [100, 2]];
+  var EAS_GQL = 'https://ink.easscan.org/graphql';
+  var KRAKEN_SCHEMA = '0x8ffa68bde25f7b88e042ea3dff55ff27217b7d1c4bf24f57967b285c5ffe4c8b'; // 'bool verified' on Ink's EAS
+  var KRAKEN_ATTESTER = '0xfDB645Fe7868064bF3934f307A918C817e759fF6';
   var ZNS_ADDR = '0xfb2cd41a8aec89efbb19575c6c48d872ce97a0a5';      // ZNS Connect, the .ink domain NFT
   var TYDRO_POINTS_ADDR = '0x40abd730cc9da34a8ee9823feabdba35e50c4ac7'; // Tydro Ink Points token
   var TIERS_LABELS = [{ n: 'Droplet', min: 12 }, { n: 'Quill', min: 30 }, { n: 'Nib', min: 53 }, { n: 'Inkwell', min: 82 }];
@@ -116,6 +119,15 @@
     return out;
   }
 
+  async function checkKraken(address) {
+    var query = 'query($r:String!,$s:String!,$a:String!){attestations(where:{recipient:{equals:$r,mode:insensitive},schemaId:{equals:$s},attester:{equals:$a}},take:5,orderBy:[{time:desc}]){revoked time expirationTime decodedDataJson}}';
+    var j = await getJson(EAS_GQL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query: query, variables: { r: address, s: KRAKEN_SCHEMA, a: KRAKEN_ATTESTER } }) });
+    if (j.errors) throw new Error('attestation service error');
+    var now = Date.now() / 1000;
+    var live = ((j.data && j.data.attestations) || []).filter(function (a) { return !a.revoked && (!Number(a.expirationTime) || Number(a.expirationTime) > now); });
+    return { verified: live.length > 0, since: live.length ? Number(live[live.length - 1].time) * 1000 : null };
+  }
+
   async function checkGithub(handle, warnings) {
     if (!handle) return null;
     var out = { found: false, commits: 0, prs: 0 };
@@ -156,8 +168,10 @@
       : item('domains', '.ink domain owned', chain.domains, String(chain.domains), tier(chain.domains, TIERS_DOMAINS), maxOf(TIERS_DOMAINS), chain.domains ? 'ZNS Connect names held by this wallet' : 'Get one at zns.bio to score here'));
     idn.push(chain.nftCollections == null ? na('nfts', 'Ink NFT collections held', maxOf(TIERS_NFTS), 'NFT list unreachable')
       : item('nfts', 'Ink NFT collections held', chain.nftCollections, String(chain.nftCollections), tier(chain.nftCollections, TIERS_NFTS), maxOf(TIERS_NFTS), 'Different collections, not counting .ink domains'));
-    idn.push(item('kraken', 'Kraken verified account', kraken ? 1 : 0, kraken ? 'Yes (self-declared)' : 'No', kraken ? 3 : 0, 3, 'Kraken account status is private and cannot be checked from a wallet, so this is taken on trust'));
-    cats.push({ id: 'ident', name: 'Ink identity', note: 'Domains and collectibles are read from your token balances. Kraken status is self-declared.', items: idn });
+    idn.push(!kraken ? na('kraken', 'Kraken verified wallet', 3, 'Attestation service unreachable')
+      : kraken.verified ? item('kraken', 'Kraken verified wallet', 1, 'Verified', 3, 3, 'Onchain verification record on Ink' + (kraken.since ? ', issued ' + new Date(kraken.since).toISOString().slice(0, 10) : ''))
+      : item('kraken', 'Kraken verified wallet', 0, 'Not verified', 0, 3, 'No active record found. Link this wallet to a verified Kraken account to get one'));
+    cats.push({ id: 'ident', name: 'Ink identity', note: 'Domains and collectibles come from your token balances. Kraken verification is read from the onchain record.', items: idn });
 
     var TS = 6, TB = 2;
     df.push(chain.tydroSupply == null ? na('tsupply', 'Tydro lending deposit', TS, 'Token balances unreachable')
@@ -229,13 +243,14 @@
       .then(function (v) { if (v === 'slow') warnings.push('The Ink explorer was slow, so some wallet activity items are missing. Try again in a minute.'); return chainOut; });
     var ghP = within(checkGithub(github, warnings), 20000, { found: false, error: true });
     gmP = within(gmP, 15000, null);
-    var done = 0, step = function (label) { return function (v) { done++; if (q.onProgress) q.onProgress(done, 3, label); return v; }; };
+    var krP = within(checkKraken(address).catch(function (e) { warnings.push('Kraken verification lookup failed (' + e.message + ').'); return null; }), 15000, null);
+    var done = 0, step = function (label) { return function (v) { done++; if (q.onProgress) q.onProgress(done, 4, label); return v; }; };
     var statsP = getJson(EXPLORER + '/api/v2/stats').then(function (st) {
       var a = Number(st.total_addresses), t = Number(st.total_transactions);
       return a > 0 && t > 0 ? { addresses: a, transactions: t } : null;
     }).catch(function () { return null; });
-    var r = await Promise.all([chainP.then(step('Ink activity')), ghP.then(step('GitHub')), gmP.then(step('GM rank')), within(statsP, 10000, null)]);
-    var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2], !!q.kraken);
+    var r = await Promise.all([chainP.then(step('Ink activity')), ghP.then(step('GitHub')), gmP.then(step('GM rank')), within(statsP, 10000, null), krP.then(step('Kraken Verify'))]);
+    var cats = score(r[0], r[1], q.xf != null && isFinite(q.xf) ? Math.max(0, Math.floor(q.xf)) : null, q.xyears, r[2], r[4]);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
     var stats = r[3], txRank = null;
     if (stats && r[0].txCount > 0) {
