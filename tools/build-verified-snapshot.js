@@ -65,11 +65,13 @@ async function nonces(addrs) {
 
 // Activity index = transactions sent + token transfers + gas used in millions. docs/checker.js uses the same formula.
 async function counters(addrs, nonce) {
-  const act = new Array(addrs.length).fill(null), deadline = Date.now() + 20 * 60 * 1000;
+  // Random order, so the wallets read before the deadline are an unbiased sample (the explorer rate-limits hard).
+  const order = addrs.map((_, i) => i); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  const act = new Array(addrs.length).fill(null), deadline = Date.now() + 25 * 60 * 1000;
   let next = 0, pause = 60, done = 0, limited = 0;
   async function worker() {
     while (next < addrs.length && Date.now() < deadline) {
-      const i = next++;
+      const i = order[next++];
       if (nonce[i] == null) continue;
       for (let t = 0; t < 4; t++) {
         try {
@@ -103,7 +105,7 @@ async function counters(addrs, nonce) {
   console.log('activity read:', act.length, 'top 5', act.slice(0, 5), 'median', act[Math.floor(act.length / 2)]);
   ok.sort((a, b) => b - a);
   const snap = { generatedAt: new Date().toISOString(), total: addrs.length, sampled: ok.length, nonces: ok };
-  if (act.length >= addrs.length * 0.5) { snap.activity = act; snap.activitySampled = act.length; }
+  if (act.length >= 1500) { snap.activity = act; snap.activitySampled = act.length; }
   fs.writeFileSync(OUT, JSON.stringify(snap));
   console.log('wrote', OUT, 'bytes', fs.statSync(OUT).size, 'top 5', ok.slice(0, 5), 'median', ok[Math.floor(ok.length / 2)], 'zero-tx wallets', ok.filter((v) => v === 0).length, 'seconds', Math.round((Date.now() - t0) / 1000));
 })().catch((e) => { console.error('ERROR', e.message); process.exit(1); });

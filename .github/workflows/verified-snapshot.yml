@@ -13,7 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,7 +21,7 @@ jobs:
           node-version: 22
       - run: |
           set +e
-          timeout 54m node tools/build-verified-snapshot.js > out.txt 2>&1
+          timeout 80m node tools/build-verified-snapshot.js > out.txt 2>&1
           code=$?
           msg=$(tail -c 1500 out.txt | tr '\r' '\n' | tail -n 12 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
           echo "::notice title=snapshot::$msg"
@@ -33,4 +33,9 @@ jobs:
           git config user.name "Urbankalu"
           git config user.email "kaluobasi60@gmail.com"
           git add docs/verified-snapshot.json
-          if git diff --cached --quiet; then echo "no change"; else git commit -m "Update verified wallet snapshot" && git pull --rebase origin main && git push origin HEAD:main; fi
+          if git diff --cached --quiet; then echo "no change"; else
+            git commit -m "Update verified wallet snapshot" > c.txt 2>&1 && git pull --rebase --autostash origin main >> c.txt 2>&1 && git push origin HEAD:main >> c.txt 2>&1
+            code=$?
+            echo "::notice title=commit::$(tail -c 800 c.txt | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+            exit $code
+          fi
