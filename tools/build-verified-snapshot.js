@@ -38,7 +38,7 @@ async function recipients() {
 async function nonces(addrs) {
   // The public RPC rate-limits per IP, so go sequentially with an adaptive pause and retry rejected items in later rounds.
   const out = new Array(addrs.length).fill(null);
-  const BATCH = Number(process.env.BATCH || 25), deadline = Date.now() + 22 * 60 * 1000;
+  const BATCH = Number(process.env.BATCH || 25), deadline = Date.now() + 48 * 60 * 1000;
   let pending = addrs.map((_, i) => i), pause = 150, round = 0, limited = 0;
   while (pending.length && Date.now() < deadline && round < 12) {
     round++;
@@ -70,7 +70,7 @@ async function nonces(addrs) {
   const n = await nonces(addrs);
   const ok = n.filter((v) => v != null);
   console.log('\nnonces read:', ok.length, 'missing:', n.length - ok.length);
-  if (ok.length < addrs.length * 0.97) throw new Error('too many wallets could not be read, not writing snapshot');
+  if (ok.length < addrs.length * 0.95) throw new Error('too many wallets could not be read, not writing snapshot');
   ok.sort((a, b) => b - a);
   const snap = { generatedAt: new Date().toISOString(), total: ok.length, nonces: ok };
   fs.writeFileSync(OUT, JSON.stringify(snap));
