@@ -37,7 +37,7 @@ async function recipients() {
 
 async function nonces(addrs) {
   const out = new Array(addrs.length).fill(null);
-  const BATCH = Number(process.env.BATCH || 100), CONC = 6;
+  const BATCH = Number(process.env.BATCH || 50), CONC = 3;
   const jobs = []; for (let i = 0; i < addrs.length; i += BATCH) jobs.push(i);
   let next = 0, done = 0, failed = 0;
   async function worker() {
@@ -46,7 +46,8 @@ async function nonces(addrs) {
       const body = slice.map((a, k) => ({ jsonrpc: '2.0', id: k, method: 'eth_getTransactionCount', params: [a, 'latest'] }));
       try {
         const res = await post(RPC, body, 5);
-        (Array.isArray(res) ? res : []).forEach((x) => { if (x && x.result != null) out[start + x.id] = parseInt(x.result, 16); });
+        if (!Array.isArray(res)) { if (!global.__shape) { global.__shape = 1; console.log('non-array response', JSON.stringify(res).slice(0, 300)); } }
+        (Array.isArray(res) ? res : []).forEach((x) => { if (x && x.result != null) out[start + x.id] = parseInt(x.result, 16); else if (x && x.error && !global.__err) { global.__err = 1; console.log('item error', JSON.stringify(x.error).slice(0, 300)); } });
       } catch (e) { failed++; }
       done += slice.length;
       if ((done / BATCH) % 20 < 1) console.log('nonces read: ' + done + '/' + addrs.length + ' failedBatches ' + failed);
