@@ -174,7 +174,8 @@
   function rankAmong(snapshot, n) {
     var a = snapshot.nonces, lo = 0, hi = a.length;
     while (lo < hi) { var mid = (lo + hi) >> 1; if (a[mid] > n) lo = mid + 1; else hi = mid; }
-    return lo + 1;
+    var k = snapshot.sampled || a.length, scale = k > 0 ? (snapshot.total || k) / k : 1;
+    return Math.max(1, Math.round((lo + 1) * scale));
   }
 
   function sybil(chain) {

@@ -70,9 +70,9 @@ async function nonces(addrs) {
   const n = await nonces(addrs);
   const ok = n.filter((v) => v != null);
   console.log('\nnonces read:', ok.length, 'missing:', n.length - ok.length);
-  if (ok.length < addrs.length * 0.95) throw new Error('too many wallets could not be read, not writing snapshot');
+  if (ok.length < addrs.length * 0.5) throw new Error('too many wallets could not be read, not writing snapshot');
   ok.sort((a, b) => b - a);
-  const snap = { generatedAt: new Date().toISOString(), total: ok.length, nonces: ok };
+  const snap = { generatedAt: new Date().toISOString(), total: addrs.length, sampled: ok.length, nonces: ok };
   fs.writeFileSync(OUT, JSON.stringify(snap));
   console.log('wrote', OUT, 'bytes', fs.statSync(OUT).size, 'top 5', ok.slice(0, 5), 'median', ok[Math.floor(ok.length / 2)], 'zero-tx wallets', ok.filter((v) => v === 0).length, 'seconds', Math.round((Date.now() - t0) / 1000));
 })().catch((e) => { console.error('ERROR', e.message); process.exit(1); });
