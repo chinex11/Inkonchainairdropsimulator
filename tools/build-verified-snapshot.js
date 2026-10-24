@@ -36,33 +36,28 @@ async function recipients() {
 }
 
 async function nonces(addrs) {
+  // The public RPC rate-limits per IP, so go sequentially with an adaptive pause and retry rejected items in later rounds.
   const out = new Array(addrs.length).fill(null);
-  const BATCH = Number(process.env.BATCH || 50), CONC = 3;
-  const jobs = []; for (let i = 0; i < addrs.length; i += BATCH) jobs.push(i);
-  let next = 0, done = 0, failed = 0;
-  async function worker() {
-    while (next < jobs.length) {
-      const start = jobs[next++], slice = addrs.slice(start, start + BATCH);
-      const body = slice.map((a, k) => ({ jsonrpc: '2.0', id: k, method: 'eth_getTransactionCount', params: [a, 'latest'] }));
-      try {
-        const res = await post(RPC, body, 5);
-        if (!Array.isArray(res)) { if (!global.__shape) { global.__shape = 1; console.log('non-array response', JSON.stringify(res).slice(0, 300)); } }
-        (Array.isArray(res) ? res : []).forEach((x) => { if (x && x.result != null) out[start + x.id] = parseInt(x.result, 16); else if (x && x.error && !global.__err) { global.__err = 1; console.log('item error', JSON.stringify(x.error).slice(0, 300)); } });
-      } catch (e) { failed++; }
-      done += slice.length;
-      if ((done / BATCH) % 20 < 1) console.log('nonces read: ' + done + '/' + addrs.length + ' failedBatches ' + failed);
+  const BATCH = Number(process.env.BATCH || 25), deadline = Date.now() + 22 * 60 * 1000;
+  let pending = addrs.map((_, i) => i), pause = 150, round = 0, limited = 0;
+  while (pending.length && Date.now() < deadline && round < 12) {
+    round++;
+    const next = [];
+    for (let i = 0; i < pending.length && Date.now() < deadline; i += BATCH) {
+      const idx = pending.slice(i, i + BATCH);
+      let res = null;
+      try { res = await post(RPC, idx.map((m, k) => ({ jsonrpc: '2.0', id: k, method: 'eth_getTransactionCount', params: [addrs[m], 'latest'] })), 2); } catch (e) { /* retry later */ }
+      let bad = 0;
+      idx.forEach((m) => next.push(m)); next.length -= idx.length;
+      const got = new Set();
+      (Array.isArray(res) ? res : []).forEach((x) => { if (x && x.result != null) { out[idx[x.id]] = parseInt(x.result, 16); got.add(x.id); } else if (x && x.error) { bad++; if (!limited) { limited = 1; console.log('item error', JSON.stringify(x.error).slice(0, 200)); } } });
+      idx.forEach((m, k) => { if (!got.has(k)) next.push(m); });
+      pause = bad ? Math.min(pause * 2, 8000) : Math.max(pause * 0.9, 100);
+      await sleep(pause);
+      if ((i / BATCH) % 40 === 0) console.log('round', round, 'read', out.filter((v) => v != null).length + '/' + addrs.length, 'pause', Math.round(pause));
     }
-  }
-  await Promise.all(Array.from({ length: CONC }, worker));
-  // second pass for anything missed: smaller batches, bounded time
-  const miss = out.map((v, i) => (v == null ? i : -1)).filter((i) => i >= 0);
-  const stop = Date.now() + 5 * 60 * 1000;
-  for (let i = 0; i < miss.length && Date.now() < stop; i += 20) {
-    const idx = miss.slice(i, i + 20);
-    try {
-      const res = await post(RPC, idx.map((m, k) => ({ jsonrpc: '2.0', id: k, method: 'eth_getTransactionCount', params: [addrs[m], 'latest'] })), 2);
-      (Array.isArray(res) ? res : []).forEach((x) => { if (x && x.result != null) out[idx[x.id]] = parseInt(x.result, 16); });
-    } catch (e) { /* leave null */ }
+    pending = pending.filter((m) => out[m] == null);
+    console.log('round', round, 'done; still missing', pending.length);
   }
   return out;
 }

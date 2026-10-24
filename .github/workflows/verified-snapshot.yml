@@ -18,7 +18,7 @@ jobs:
           node-version: 22
       - run: |
           set +e
-          timeout 25m node tools/build-verified-snapshot.js > out.txt 2>&1
+          timeout 28m node tools/build-verified-snapshot.js > out.txt 2>&1
           code=$?
           msg=$(tail -c 1500 out.txt | tr '\r' '\n' | tail -n 12 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
           echo "::notice title=snapshot::$msg"
