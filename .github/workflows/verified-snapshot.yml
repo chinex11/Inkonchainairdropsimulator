@@ -22,6 +22,8 @@ jobs:
           code=$?
           msg=$(tail -c 1500 out.txt | tr '\r' '\n' | tail -n 12 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
           echo "::notice title=snapshot::$msg"
+          errs=$(grep -m4 "item error\|non-array" out.txt | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::notice title=errors::$errs"
           exit $code
       - name: Commit snapshot
         run: |
