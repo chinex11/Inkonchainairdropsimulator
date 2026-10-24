@@ -1,0 +1,30 @@
+name: Verified snapshot
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+  push:
+    paths: ['tools/build-verified-snapshot.js', '.github/workflows/verified-snapshot.yml']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: |
+          set +e
+          node tools/build-verified-snapshot.js > out.txt 2>&1
+          code=$?
+          msg=$(tail -c 1500 out.txt | tr '\r' '\n' | tail -n 12 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::notice title=snapshot::$msg"
+          exit $code
+      - name: Commit snapshot
+        run: |
+          git config user.name "Urbankalu"
+          git config user.email "kaluobasi60@gmail.com"
+          git add docs/verified-snapshot.json
+          if git diff --cached --quiet; then echo "no change"; else git commit -m "Update verified wallet snapshot" && git pull --rebase origin main && git push origin HEAD:main; fi

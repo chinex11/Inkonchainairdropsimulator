@@ -11,7 +11,7 @@ const show = (r) => r.categories.forEach((c) => { console.log('  ' + c.name + ' 
   const out = {};
   for (const [name, address] of wallets) {
     const t = Date.now();
-    const r = await checker.check({ address, github: '', gmLookup: gm.lookupGm });
+    const r = await checker.check({ address, gmLookup: gm.lookupGm });
     out[name] = r;
     console.log('\n== ' + name + ' ' + address + ' (' + (Date.now() - t) + ' ms) score ' + r.score + '/' + r.totalMax + ' ' + JSON.stringify(r.warnings));
     show(r);

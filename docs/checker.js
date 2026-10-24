@@ -1,9 +1,8 @@
-/* Browser-side Ink airdrop checker. Reads Ink (RPC + Blockscout) and GitHub directly from the visitor's browser. */
+/* Browser-side Ink airdrop checker. Reads Ink (RPC + Blockscout), the gm.ink leaderboard and Ink's EAS attestations from the visitor's browser. */
 (function (root) {
   'use strict';
   var EXPLORER = 'https://explorer.inkonchain.com';
   var RPC = 'https://rpc-gel.inkonchain.com';
-  var INK_ORGS = ['inkonchain'];
   var MAINNET_LAUNCH = Date.parse('2024-12-09T00:00:00Z');
   var MAX_PAGES = 6, TIME_BUDGET = 10000, DAY = 86400000;
 
@@ -11,8 +10,6 @@
   var TIERS_MONTHS = [[1, 1], [2, 2], [3, 3], [4, 4], [6, 6], [9, 8], [12, 10]];
   var TIERS_APPS = [[1, 1], [3, 3], [5, 5], [10, 7], [20, 8]];
   var TIERS_VALUE = [[1, 1], [100, 3], [1000, 5], [10000, 7], [100000, 8]];
-  var TIERS_COMMITS = [[1, 3], [5, 6], [20, 9], [50, 11]];
-  var TIERS_PRS = [[1, 2], [3, 4], [10, 6]];
   var TIERS_DEPLOYED = [[1, 1], [3, 3]];
   var TIERS_STREAK = [[7, 1], [30, 2], [100, 3]];
   var TIERS_GM_PEOPLE = [[5, 1], [25, 2]];
@@ -25,7 +22,7 @@
   var KRAKEN_SCHEMA = '0x8ffa68bde25f7b88e042ea3dff55ff27217b7d1c4bf24f57967b285c5ffe4c8b'; // 'bool verified' on Ink's EAS
   var KRAKEN_ATTESTER = '0xfDB645Fe7868064bF3934f307A918C817e759fF6';
   var ZNS_ADDR = '0xfb2cd41a8aec89efbb19575c6c48d872ce97a0a5';      // ZNS Connect, the .ink domain NFT
-  var TIERS_LABELS = [{ n: 'Droplet', min: 10 }, { n: 'Quill', min: 25 }, { n: 'Nib', min: 45 }, { n: 'Inkwell', min: 69 }];
+  var TIERS_LABELS = [{ n: 'Droplet', min: 8 }, { n: 'Quill', min: 20 }, { n: 'Nib', min: 37 }, { n: 'Inkwell', min: 57 }];
 
   function tier(v, t) { var p = 0; for (var i = 0; i < t.length; i++) if (v >= t[i][0]) p = t[i][1]; return p; }
   function maxOf(t) { return t[t.length - 1][1]; }
@@ -123,30 +120,8 @@
     return { verified: live.length > 0, since: live.length ? Number(live[live.length - 1].time) * 1000 : null };
   }
 
-  async function checkGithub(handle, warnings) {
-    if (!handle) return null;
-    var out = { found: false, commits: 0, prs: 0 };
-    var H = { Accept: 'application/vnd.github+json' };
-    try { await getJson('https://api.github.com/users/' + encodeURIComponent(handle), { headers: H }); out.found = true; }
-    catch (e) {
-      if (e.status === 404) return out;
-      warnings.push('GitHub lookup failed (' + e.message + '). GitHub limits anonymous browser requests, so wait a minute and retry.');
-      out.error = true; return out;
-    }
-    for (var k = 0; k < INK_ORGS.length; k++) {
-      var org = INK_ORGS[k];
-      try {
-        var c = await getJson('https://api.github.com/search/commits?per_page=1&q=' + encodeURIComponent('author:' + handle + ' org:' + org), { headers: H });
-        out.commits += Number(c.total_count || 0);
-        var p = await getJson('https://api.github.com/search/issues?per_page=1&q=' + encodeURIComponent('is:pr is:merged author:' + handle + ' org:' + org), { headers: H });
-        out.prs += Number(p.total_count || 0);
-      } catch (e) { warnings.push('GitHub search for org "' + org + '" failed (' + e.message + ').'); }
-    }
-    return out;
-  }
-
-  function score(chain, gh, gm, kraken) {
-    var cats = [], c = [], g = [], m = [], idn = [], df = [];
+  function score(chain, gm, kraken) {
+    var cats = [], c = [], m = [], idn = [], df = [];
     c.push(chain.txCount == null ? na('tx', 'Transactions on Ink', maxOf(TIERS_TX), 'RPC unreachable')
       : item('tx', 'Transactions on Ink', chain.txCount, String(chain.txCount), tier(chain.txCount, TIERS_TX), maxOf(TIERS_TX), 'Outgoing transactions (account nonce)'));
     c.push(chain.months == null ? na('months', 'Active months', maxOf(TIERS_MONTHS), 'Explorer unreachable')
@@ -172,7 +147,9 @@
       : item('xfers', 'Token transfers', chain.tokenTransfers, String(chain.tokenTransfers), tier(chain.tokenTransfers, TIERS_TRANSFERS), maxOf(TIERS_TRANSFERS), 'Swaps, sends and mints that moved tokens'));
     df.push(chain.gasUsed == null ? na('gas', 'Gas used', maxOf(TIERS_GAS), 'Explorer counters unreachable')
       : item('gas', 'Gas used', chain.gasUsed, fmtNum(chain.gasUsed), tier(chain.gasUsed, TIERS_GAS), maxOf(TIERS_GAS), 'Total gas your transactions consumed'));
-    cats.push({ id: 'usage', name: 'Ink usage', note: 'How much you use the chain, from the explorer.', items: df });
+    df.push(chain.deployed == null ? na('deployed', 'Contracts deployed on Ink', maxOf(TIERS_DEPLOYED), 'Explorer unreachable')
+      : item('deployed', 'Contracts deployed on Ink', chain.deployed, String(chain.deployed), tier(chain.deployed, TIERS_DEPLOYED), maxOf(TIERS_DEPLOYED), 'Contract creations from this wallet'));
+    cats.push({ id: 'usage', name: 'Ink usage', note: 'How much you use the chain, from the explorer, including contracts you deployed.', items: df });
 
     if (!gm) {
       var gw = 'GM data unavailable right now';
@@ -189,16 +166,6 @@
     }
     cats.push({ id: 'gm', name: 'Ink GM', note: 'Your rank on the gm.ink leaderboard, read live.', items: m });
 
-    if (!gh) { g.push(na('commits', 'Commits to Ink repos', maxOf(TIERS_COMMITS), 'No GitHub username entered')); g.push(na('prs', 'Merged pull requests', maxOf(TIERS_PRS), 'No GitHub username entered')); }
-    else if (!gh.found) { var why = gh.error ? 'GitHub unreachable' : 'GitHub user not found'; g.push(na('commits', 'Commits to Ink repos', maxOf(TIERS_COMMITS), why)); g.push(na('prs', 'Merged pull requests', maxOf(TIERS_PRS), why)); }
-    else {
-      g.push(item('commits', 'Commits to Ink repos', gh.commits, String(gh.commits), tier(gh.commits, TIERS_COMMITS), maxOf(TIERS_COMMITS), 'Across ' + INK_ORGS.join(', ')));
-      g.push(item('prs', 'Merged pull requests', gh.prs, String(gh.prs), tier(gh.prs, TIERS_PRS), maxOf(TIERS_PRS), 'Across ' + INK_ORGS.join(', ')));
-    }
-    g.push(chain.deployed == null ? na('deployed', 'Contracts deployed on Ink', maxOf(TIERS_DEPLOYED), 'Explorer unreachable')
-      : item('deployed', 'Contracts deployed on Ink', chain.deployed, String(chain.deployed), tier(chain.deployed, TIERS_DEPLOYED), maxOf(TIERS_DEPLOYED), 'Contract creations from this wallet'));
-    cats.push({ id: 'dev', name: 'GitHub', note: 'Contributions to Ink organisations, plus contracts you deployed.', items: g });
-
     cats.forEach(function (k) { k.score = k.items.reduce(function (a, i) { return a + i.pts; }, 0); k.max = k.items.reduce(function (a, i) { return a + i.max; }, 0); });
     return cats;
   }
@@ -212,26 +179,23 @@
 
   async function check(q) {
     if (!/^0x[0-9a-fA-F]{40}$/.test(q.address || '')) throw new Error('Enter a valid wallet address: 0x followed by 40 characters.');
-    var github = (q.github || '').replace(/^@/, '');
-    if (github && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(github)) throw new Error('That GitHub username is not valid.');
     var warnings = [], address = q.address.toLowerCase();
     var gmP = (q.gmLookup ? q.gmLookup(address) : (typeof location !== 'undefined' ? getJson('/api/gm?address=' + address) : Promise.reject(new Error('no GM endpoint'))))
       .catch(function (e) { warnings.push('Ink GM lookup failed (' + e.message + ').'); return null; });
     var chainOut = { txCount: null, months: null, apps: null, deployed: null, firstTs: null, valueUsd: null, sampled: false, domains: null, nftCollections: null, tokenTransfers: null, gasUsed: null };
     var chainP = within(checkChain(address, warnings, chainOut).then(function () { return 'ok'; }, function (e) { warnings.push('Ink lookup failed (' + e.message + ').'); return 'ok'; }), 25000, 'slow')
       .then(function (v) { if (v === 'slow') warnings.push('The Ink explorer was slow, so some wallet activity items are missing. Try again in a minute.'); return chainOut; });
-    var ghP = within(checkGithub(github, warnings), 20000, { found: false, error: true });
     gmP = within(gmP, 15000, null);
     var krP = within(checkKraken(address).catch(function (e) { warnings.push('Kraken verification lookup failed (' + e.message + ').'); return null; }), 15000, null);
-    var done = 0, step = function (label) { return function (v) { done++; if (q.onProgress) q.onProgress(done, 4, label); return v; }; };
+    var done = 0, step = function (label) { return function (v) { done++; if (q.onProgress) q.onProgress(done, 3, label); return v; }; };
     var statsP = getJson(EXPLORER + '/api/v2/stats').then(function (st) {
       var a = Number(st.total_addresses), t = Number(st.total_transactions);
       return a > 0 && t > 0 ? { addresses: a, transactions: t } : null;
     }).catch(function () { return null; });
-    var r = await Promise.all([chainP.then(step('Ink activity')), ghP.then(step('GitHub')), gmP.then(step('GM rank')), within(statsP, 10000, null), krP.then(step('Kraken Verify'))]);
-    var cats = score(r[0], r[1], r[2], r[4]);
+    var r = await Promise.all([chainP.then(step('Ink activity')), gmP.then(step('GM rank')), within(statsP, 10000, null), krP.then(step('Kraken Verify'))]);
+    var cats = score(r[0], r[1], r[3]);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
-    var stats = r[3], txRank = null;
+    var stats = r[2], txRank = null;
     if (stats && r[0].txCount > 0) {
       var m = stats.transactions / stats.addresses;
       var alpha = m > 1.05 ? Math.min(2.5, Math.max(0.8, m / (m - 1))) : 2.5;
