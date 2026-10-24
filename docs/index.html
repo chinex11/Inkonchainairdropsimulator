@@ -139,7 +139,8 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
           <dt>Value at assumed FDV</dt><dd id="usd">$0</dd>
           <dt>GM rank (exact)</dt><dd id="rkGm">—</dd>
           <dt>Score rank (estimate)</dt><dd id="rkScore">—</dd>
-          <dt>Transaction rank (estimate)</dt><dd id="rkTx">—</dd>
+          <dt>Transactions, all Ink wallets (estimate)</dt><dd id="rkTx">—</dd>
+          <dt>Transactions, Kraken-verified wallets</dt><dd id="rkVer">—</dd>
         </dl>
         <p class="small" id="rkNote" style="margin-top:10px"></p>
         <div id="notes"></div>
@@ -171,7 +172,7 @@ var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'
 var last=null, isExample=false;
 
 var SAMPLE={address:'0x0000000000000000000000000000000000000000',score:52,rawScore:52,totalMax:78,sybil:{factor:1,flags:[]},
- tiers:[{n:'Droplet',min:8},{n:'Quill',min:20},{n:'Nib',min:37},{n:'Inkwell',min:57}],warnings:[],chainStats:{addresses:4200000,transactions:300000000},txRank:{rank:21400,pct:0.51},
+ tiers:[{n:'Droplet',min:8},{n:'Quill',min:20},{n:'Nib',min:37},{n:'Inkwell',min:57}],warnings:[],chainStats:{addresses:12000000,transactions:350000000},txRank:{rank:21400,pct:0.18},verifiedRank:{rank:412,total:24800,verified:true,asOf:'2026-10-24T03:20:00Z',pct:1.7},
  categories:[
   {id:'chain',name:'Wallet activity',note:'Read live from Ink.',score:27,max:44,items:[
    {label:'Transactions on Ink',display:'182',pts:11,max:14,note:'Outgoing transactions (account nonce)'},
@@ -230,8 +231,10 @@ function renderResult(){
   $('#rkGm').textContent=gmr?gmr.display:'—';
   var N=last.chainStats&&last.chainStats.addresses;
   if(N&&A.typ>0){ var P=Math.min(1,Math.exp(-score/A.typ)); $('#rkScore').textContent='Top '+pf(P*100)+' · ~#'+fmt(Math.max(1,Math.round(N*P))); } else $('#rkScore').textContent='—';
-  $('#rkTx').textContent=last.txRank?'Top '+pf(last.txRank.pct)+' · ~#'+fmt(last.txRank.rank):'—';
-  $('#rkNote').textContent=N?'Out of about '+fmt(N)+' Ink wallets. Only the GM rank is exact. The other two are estimates from the chain-wide totals and an assumed spread of activity.':'Chain-wide wallet totals were not available, so the estimated ranks are blank.';
+  $('#rkTx').textContent=last.txRank?'Top '+pf(last.txRank.pct)+' · ~#'+fmt(last.txRank.rank)+' of ~'+(N>=1e6?(N/1e6).toFixed(1)+'M':fmt(N)):'—';
+  var vr=last.verifiedRank;
+  $('#rkVer').textContent=vr?(vr.verified?'#'+fmt(vr.rank)+' of '+fmt(vr.total):'Not verified · would be #'+fmt(vr.rank)+' of '+fmt(vr.total)):'—';
+  $('#rkNote').textContent=(N?'Ink has about '+fmt(N)+' wallets. The GM rank is exact. The score rank and the all-wallet transaction rank are estimates from chain-wide totals and an assumed spread of activity. ':'Chain-wide wallet totals were not available, so the estimated ranks are blank. ')+(vr?'The Kraken-verified rank is exact against the '+fmt(vr.total-(vr.verified?0:1))+' wallets with an active verification as of '+vr.asOf.slice(0,10)+', ranked by transactions sent.':'The Kraken-verified rank needs the daily snapshot, which was not available.');
   var n='';
   if(last.sybil&&last.sybil.factor<1) n+='<div class="note">Farming pattern flagged, score multiplied by '+last.sybil.factor+'. '+esc(last.sybil.flags.join(' '))+'</div>';
   (last.warnings||[]).forEach(function(w){ n+='<div class="note">'+esc(w)+'</div>'; });

@@ -2,6 +2,7 @@
 // Live test of the browser checker (docs/checker.js) on real wallets, run on GitHub's servers.
 const checker = require('../docs/checker.js');
 const gm = require('../api/gm.js');
+const snapshot = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'docs', 'verified-snapshot.json'), 'utf8'));
 const EX = 'https://explorer.inkonchain.com';
 const j = async (u) => (await fetch(u, { headers: { 'User-Agent': 'live-test' } })).json();
 const show = (r) => r.categories.forEach((c) => { console.log('  ' + c.name + ' ' + c.score + '/' + c.max); c.items.forEach((i) => console.log('     ' + i.label.padEnd(28) + String(i.display).padEnd(20) + '+' + i.pts + '/' + i.max)); });
@@ -11,16 +12,19 @@ const show = (r) => r.categories.forEach((c) => { console.log('  ' + c.name + ' 
   const out = {};
   for (const [name, address] of wallets) {
     const t = Date.now();
-    const r = await checker.check({ address, gmLookup: gm.lookupGm });
+    const r = await checker.check({ address, gmLookup: gm.lookupGm, snapshot });
     out[name] = r;
     console.log('\n== ' + name + ' ' + address + ' (' + (Date.now() - t) + ' ms) score ' + r.score + '/' + r.totalMax + ' ' + JSON.stringify(r.warnings));
     show(r);
+    console.log('  ranks: all-wallet tx', JSON.stringify(r.txRank), '| verified', JSON.stringify(r.verifiedRank), '| chain', JSON.stringify(r.chainStats));
   }
   const g = (r, cat, id) => r.categories.find((c) => c.id === cat).items.find((i) => i.id === id);
   const checks = [
     ['ZNS holder has a domain', g(out['TOP .ink DOMAIN HOLDER'], 'ident', 'domains').pts > 0],
     ['Known verified wallet reads as verified', g(out['KRAKEN-VERIFIED (known)'], 'ident', 'kraken').pts === 3],
     ['Unverified wallet reads as not verified', g(out['NOT VERIFIED (zero-ish)'], 'ident', 'kraken').display === 'Not verified'],
+    ['Verified wallet has an exact rank among verified wallets', !!out['KRAKEN-VERIFIED (known)'].verifiedRank && out['KRAKEN-VERIFIED (known)'].verifiedRank.verified && out['KRAKEN-VERIFIED (known)'].verifiedRank.rank >= 1 && out['KRAKEN-VERIFIED (known)'].verifiedRank.rank <= snapshot.total],
+    ['Unverified wallet gets a would-be rank', !!out['NOT VERIFIED (zero-ish)'].verifiedRank && !out['NOT VERIFIED (zero-ish)'].verifiedRank.verified],
     ['No unavailable ident/defi items for your wallet', out['YOUR WALLET'].categories.filter((c) => c.id === 'ident' || c.id === 'usage').every((c) => c.items.every((i) => i.display !== 'unavailable'))]
   ];
   console.log('');

@@ -27,6 +27,12 @@ function (gm.ink sends no CORS headers, so the page reads the GM leaderboard thr
 
 Two farming rules halve the score each: 200+ transactions to 2 or fewer apps, and 100+ transactions in the wallet's first week.
 
+## Rankings
+
+- **GM rank**: exact, from the gm.ink leaderboard.
+- **Transactions among Kraken-verified wallets**: exact. `tools/build-verified-snapshot.js` reads every wallet with an active Kraken Verify attestation and its transaction count, and writes `docs/verified-snapshot.json`. A GitHub Action refreshes it daily. A wallet that is not verified sees where it would rank.
+- **Transactions and score among all Ink wallets**: estimates. The explorer cannot list wallets by activity, so these use the chain's total wallet and transaction counts and an assumed spread.
+
 ## Limits
 
 - The Ink Foundation has confirmed an INK token (1B cap) and an airdrop, but has published no points formula. Every weight here is an assumption.

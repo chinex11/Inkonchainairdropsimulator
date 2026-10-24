@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function post(url, body, tries) {
   for (let i = 0; i < (tries || 4); i++) {
     try {
-      const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
       if (r.ok) return await r.json();
     } catch (e) { /* retry */ }
     await sleep(800 * (i + 1));
@@ -49,14 +49,19 @@ async function nonces(addrs) {
         (Array.isArray(res) ? res : []).forEach((x) => { if (x && x.result != null) out[start + x.id] = parseInt(x.result, 16); });
       } catch (e) { failed++; }
       done += slice.length;
-      if ((done / BATCH) % 20 < 1) process.stdout.write('nonces read: ' + done + '/' + addrs.length + '\r');
+      if ((done / BATCH) % 20 < 1) console.log('nonces read: ' + done + '/' + addrs.length + ' failedBatches ' + failed);
     }
   }
   await Promise.all(Array.from({ length: CONC }, worker));
-  // second pass for anything missed
+  // second pass for anything missed: smaller batches, bounded time
   const miss = out.map((v, i) => (v == null ? i : -1)).filter((i) => i >= 0);
-  for (const i of miss) {
-    try { const r = await post(RPC, { jsonrpc: '2.0', id: 1, method: 'eth_getTransactionCount', params: [addrs[i], 'latest'] }, 3); if (r.result != null) out[i] = parseInt(r.result, 16); } catch (e) { /* leave null */ }
+  const stop = Date.now() + 5 * 60 * 1000;
+  for (let i = 0; i < miss.length && Date.now() < stop; i += 20) {
+    const idx = miss.slice(i, i + 20);
+    try {
+      const res = await post(RPC, idx.map((m, k) => ({ jsonrpc: '2.0', id: k, method: 'eth_getTransactionCount', params: [addrs[m], 'latest'] })), 2);
+      (Array.isArray(res) ? res : []).forEach((x) => { if (x && x.result != null) out[idx[x.id]] = parseInt(x.result, 16); });
+    } catch (e) { /* leave null */ }
   }
   return out;
 }

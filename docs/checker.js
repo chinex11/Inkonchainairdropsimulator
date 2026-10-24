@@ -170,6 +170,13 @@
     return cats;
   }
 
+  // snapshot.nonces is sorted high to low, so the rank is one more than the number of wallets with more transactions.
+  function rankAmong(snapshot, n) {
+    var a = snapshot.nonces, lo = 0, hi = a.length;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (a[mid] > n) lo = mid + 1; else hi = mid; }
+    return lo + 1;
+  }
+
   function sybil(chain) {
     var flags = [], f = 1;
     if (chain.txCount != null && chain.apps != null && chain.txCount >= 200 && chain.apps <= 2) { f *= 0.5; flags.push('Many transactions to very few apps, a common farming pattern.'); }
@@ -192,9 +199,15 @@
       var a = Number(st.total_addresses), t = Number(st.total_transactions);
       return a > 0 && t > 0 ? { addresses: a, transactions: t } : null;
     }).catch(function () { return null; });
-    var r = await Promise.all([chainP.then(step('Ink activity')), gmP.then(step('GM rank')), within(statsP, 10000, null), krP.then(step('Kraken Verify'))]);
+    var snapP = q.snapshot ? Promise.resolve(q.snapshot) : within(getJson('verified-snapshot.json', {}, 12000).catch(function () { return null; }), 14000, null);
+    var r = await Promise.all([chainP.then(step('Ink activity')), gmP.then(step('GM rank')), within(statsP, 10000, null), krP.then(step('Kraken Verify')), snapP]);
     var cats = score(r[0], r[1], r[3]);
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
+    var snap = r[4], verifiedRank = null;
+    if (snap && snap.nonces && snap.nonces.length && r[0].txCount != null) {
+      var isV = !!(r[3] && r[3].verified), rk = rankAmong(snap, r[0].txCount), tot = snap.total + (isV ? 0 : 1);
+      verifiedRank = { rank: rk, total: tot, verified: isV, asOf: snap.generatedAt, pct: 100 * rk / tot, known: r[3] != null };
+    }
     var stats = r[2], txRank = null;
     if (stats && r[0].txCount > 0) {
       var m = stats.transactions / stats.addresses;
@@ -203,7 +216,7 @@
       txRank = { rank: Math.max(1, Math.round(stats.addresses * P)), pct: P * 100 };
     }
     return { address: address, categories: cats, rawScore: raw, sybil: sy, score: Math.round(raw * sy.factor * 10) / 10,
-      totalMax: cats.reduce(function (a, c) { return a + c.max; }, 0), tiers: TIERS_LABELS, warnings: warnings, chainStats: stats, txRank: txRank, generatedAt: new Date().toISOString() };
+      totalMax: cats.reduce(function (a, c) { return a + c.max; }, 0), tiers: TIERS_LABELS, warnings: warnings, chainStats: stats, txRank: txRank, verifiedRank: verifiedRank, generatedAt: new Date().toISOString() };
   }
 
   var api = { check: check };
