@@ -171,10 +171,12 @@
   }
 
   // snapshot.nonces is sorted high to low, so the rank is one more than the number of wallets with more transactions.
-  function rankAmong(snapshot, n) {
-    var a = snapshot.nonces, lo = 0, hi = a.length;
+  // Activity index = transactions sent + token transfers + gas used (millions); the snapshot builder uses the same formula.
+  function activityIndex(c) { return (c.txCount || 0) + (c.tokenTransfers || 0) + Math.round((c.gasUsed || 0) / 1e6); }
+  function rankAmong(snapshot, n, useActivity) {
+    var a = useActivity ? snapshot.activity : snapshot.nonces, lo = 0, hi = a.length;
     while (lo < hi) { var mid = (lo + hi) >> 1; if (a[mid] > n) lo = mid + 1; else hi = mid; }
-    var k = snapshot.sampled || a.length, scale = k > 0 ? (snapshot.total || k) / k : 1;
+    var k = (useActivity ? snapshot.activitySampled : snapshot.sampled) || a.length, scale = k > 0 ? (snapshot.total || k) / k : 1;
     return Math.max(1, Math.round((lo + 1) * scale));
   }
 
@@ -206,8 +208,8 @@
     var raw = cats.reduce(function (a, c) { return a + c.score; }, 0), sy = sybil(r[0]);
     var snap = r[4], verifiedRank = null;
     if (snap && snap.nonces && snap.nonces.length && r[0].txCount != null) {
-      var isV = !!(r[3] && r[3].verified), rk = rankAmong(snap, r[0].txCount), tot = snap.total + (isV ? 0 : 1);
-      verifiedRank = { rank: rk, total: tot, verified: isV, asOf: snap.generatedAt, pct: 100 * rk / tot, known: r[3] != null };
+      var isV = !!(r[3] && r[3].verified), useAct = !!(snap.activity && snap.activity.length && r[0].tokenTransfers != null && r[0].gasUsed != null), rk = useAct ? rankAmong(snap, activityIndex(r[0]), true) : rankAmong(snap, r[0].txCount, false), tot = snap.total + (isV ? 0 : 1);
+      verifiedRank = { rank: rk, total: tot, verified: isV, asOf: snap.generatedAt, pct: 100 * rk / tot, known: r[3] != null, basis: useAct ? 'activity' : 'transactions' };
     }
     var stats = r[2], txRank = null;
     if (stats && r[0].txCount > 0) {

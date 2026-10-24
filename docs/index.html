@@ -140,7 +140,7 @@ footer{margin-top:24px;font-size:12px;color:var(--muted);max-width:80ch}
           <dt>GM rank (exact)</dt><dd id="rkGm">—</dd>
           <dt>Score rank (estimate)</dt><dd id="rkScore">—</dd>
           <dt>Transactions, all Ink wallets (estimate)</dt><dd id="rkTx">—</dd>
-          <dt>Transactions, Kraken-verified wallets</dt><dd id="rkVer">—</dd>
+          <dt>Activity, Kraken-verified wallets</dt><dd id="rkVer">—</dd>
         </dl>
         <p class="small" id="rkNote" style="margin-top:10px"></p>
         <div id="notes"></div>
@@ -234,7 +234,7 @@ function renderResult(){
   $('#rkTx').textContent=last.txRank?'Top '+pf(last.txRank.pct)+' · ~#'+fmt(last.txRank.rank)+' of ~'+(N>=1e6?(N/1e6).toFixed(1)+'M':fmt(N)):'—';
   var vr=last.verifiedRank;
   $('#rkVer').textContent=vr?(vr.verified?'#'+fmt(vr.rank)+' of '+fmt(vr.total):'Not verified · would be #'+fmt(vr.rank)+' of '+fmt(vr.total)):'—';
-  $('#rkNote').textContent=(N?'Ink has about '+fmt(N)+' wallets. The GM rank is exact. The score rank and the all-wallet transaction rank are estimates from chain-wide totals and an assumed spread of activity. ':'Chain-wide wallet totals were not available, so the estimated ranks are blank. ')+(vr?'The Kraken-verified rank is exact against the '+fmt(vr.total-(vr.verified?0:1))+' wallets with an active verification as of '+vr.asOf.slice(0,10)+', ranked by transactions sent.':'The Kraken-verified rank needs the daily snapshot, which was not available.');
+  $('#rkNote').textContent=(N?'Ink has about '+fmt(N)+' wallets. The GM rank is exact. The score rank and the all-wallet transaction rank are estimates from chain-wide totals and an assumed spread of activity. ':'Chain-wide wallet totals were not available, so the estimated ranks are blank. ')+(vr?'The Kraken-verified rank is exact against the '+fmt(vr.total-(vr.verified?0:1))+' wallets with an active verification as of '+vr.asOf.slice(0,10)+', ranked by '+(vr.basis==='activity'?'activity (transactions sent + token transfers + gas used in millions)':'transactions sent')+'.':'The Kraken-verified rank needs the daily snapshot, which was not available.');
   var n='';
   if(last.sybil&&last.sybil.factor<1) n+='<div class="note">Farming pattern flagged, score multiplied by '+last.sybil.factor+'. '+esc(last.sybil.flags.join(' '))+'</div>';
   (last.warnings||[]).forEach(function(w){ n+='<div class="note">'+esc(w)+'</div>'; });

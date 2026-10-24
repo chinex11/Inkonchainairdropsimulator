@@ -7,6 +7,7 @@ const EAS = 'https://ink.easscan.org/graphql';
 const RPC = process.env.INK_RPC || 'https://rpc-gel.inkonchain.com';
 const SCHEMA = '0x8ffa68bde25f7b88e042ea3dff55ff27217b7d1c4bf24f57967b285c5ffe4c8b';
 const ATTESTER = '0xfDB645Fe7868064bF3934f307A918C817e759fF6';
+const EXPLORER = process.env.INK_EXPLORER || 'https://explorer.inkonchain.com/api/v2';
 const OUT = path.join(__dirname, '..', 'docs', 'verified-snapshot.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -62,6 +63,33 @@ async function nonces(addrs) {
   return out;
 }
 
+// Activity index = transactions sent + token transfers + gas used in millions. docs/checker.js uses the same formula.
+async function counters(addrs, nonce) {
+  const act = new Array(addrs.length).fill(null), deadline = Date.now() + 20 * 60 * 1000;
+  let next = 0, pause = 60, done = 0, limited = 0;
+  async function worker() {
+    while (next < addrs.length && Date.now() < deadline) {
+      const i = next++;
+      if (nonce[i] == null) continue;
+      for (let t = 0; t < 4; t++) {
+        try {
+          const r = await fetch(EXPLORER + '/addresses/' + addrs[i] + '/counters', { signal: AbortSignal.timeout(15000) });
+          if (r.status === 429) { limited++; pause = Math.min(pause * 2, 6000); await sleep(pause); continue; }
+          if (!r.ok) break;
+          const c = await r.json();
+          act[i] = nonce[i] + Number(c.token_transfers_count || 0) + Math.round(Number(c.gas_usage_count || 0) / 1e6);
+          pause = Math.max(pause * 0.95, 40);
+          break;
+        } catch (e) { await sleep(500); }
+      }
+      if (++done % 1000 === 0) console.log('counters', done, 'ok', act.filter((v) => v != null).length, 'limited', limited, 'pause', Math.round(pause));
+      await sleep(pause);
+    }
+  }
+  await Promise.all(Array.from({ length: 4 }, worker));
+  return act;
+}
+
 (async () => {
   const t0 = Date.now();
   const addrs = await recipients();
@@ -71,8 +99,11 @@ async function nonces(addrs) {
   const ok = n.filter((v) => v != null);
   console.log('\nnonces read:', ok.length, 'missing:', n.length - ok.length);
   if (ok.length < addrs.length * 0.5) throw new Error('too many wallets could not be read, not writing snapshot');
+  const act = (await counters(addrs, n)).filter((v) => v != null).sort((a, b) => b - a);
+  console.log('activity read:', act.length, 'top 5', act.slice(0, 5), 'median', act[Math.floor(act.length / 2)]);
   ok.sort((a, b) => b - a);
   const snap = { generatedAt: new Date().toISOString(), total: addrs.length, sampled: ok.length, nonces: ok };
+  if (act.length >= addrs.length * 0.5) { snap.activity = act; snap.activitySampled = act.length; }
   fs.writeFileSync(OUT, JSON.stringify(snap));
   console.log('wrote', OUT, 'bytes', fs.statSync(OUT).size, 'top 5', ok.slice(0, 5), 'median', ok[Math.floor(ok.length / 2)], 'zero-tx wallets', ok.filter((v) => v === 0).length, 'seconds', Math.round((Date.now() - t0) / 1000));
 })().catch((e) => { console.error('ERROR', e.message); process.exit(1); });
